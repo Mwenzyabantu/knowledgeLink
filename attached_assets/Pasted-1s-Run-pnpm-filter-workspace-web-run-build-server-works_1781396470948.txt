@@ -1,0 +1,34 @@
+1s
+Run pnpm --filter @workspace/web run build:server
+
+> @workspace/web@1.0.0 build:server D:\a\knowledgeLink\knowledgeLink\artifacts\web
+> node server/build.mjs
+
+Error: R] Could not resolve "@babel/preset-typescript/package.json"
+
+    ../../node_modules/.pnpm/@babel+core@7.29.0/node_modules/@babel/core/lib/config/files/module-types.js:165:36:
+      165 │ ...t packageJson = require("@babel/preset-typescript/package.json");
+          ╵                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  You can mark the path "@babel/preset-typescript/package.json" as external to exclude it from the bundle, which will remove this error and leave the unresolved path in the bundle. You can also surround this "require" call with a try/catch block to handle this failure at run-time instead of bundle-time.
+
+1 error
+Error: Build failed with 1 error:
+../../node_modules/.pnpm/@babel+core@7.29.0/node_modules/@babel/core/lib/config/files/module-types.js:165:36: ERROR: Could not resolve "@babel/preset-typescript/package.json"
+    at failureErrorWithLog (D:\a\knowledgeLink\knowledgeLink\node_modules\.pnpm\esbuild@0.27.3\node_modules\esbuild\lib\main.js:1467:15)
+    at D:\a\knowledgeLink\knowledgeLink\node_modules\.pnpm\esbuild@0.27.3\node_modules\esbuild\lib\main.js:926:25
+    at D:\a\knowledgeLink\knowledgeLink\node_modules\.pnpm\esbuild@0.27.3\node_modules\esbuild\lib\main.js:878:52
+    at buildResponseToResult (D:\a\knowledgeLink\knowledgeLink\node_modules\.pnpm\esbuild@0.27.3\node_modules\esbuild\lib\main.js:924:7)
+    at D:\a\knowledgeLink\knowledgeLink\node_modules\.pnpm\esbuild@0.27.3\node_modules\esbuild\lib\main.js:951:16
+    at responseCallbacks.<computed> (D:\a\knowledgeLink\knowledgeLink\node_modules\.pnpm\esbuild@0.27.3\node_modules\esbuild\lib\main.js:603:9)
+    at handleIncomingPacket (D:\a\knowledgeLink\knowledgeLink\node_modules\.pnpm\esbuild@0.27.3\node_modules\esbuild\lib\main.js:658:12)
+    at Socket.readFromStdout (D:\a\knowledgeLink\knowledgeLink\node_modules\.pnpm\esbuild@0.27.3\node_modules\esbuild\lib\main.js:581:7)
+    at Socket.emit (node:events:509:28)
+    at addChunk (node:internal/streams/readable:563:12) {
+  errors: [Getter/Setter],
+  warnings: [Getter/Setter]
+}
+D:\a\knowledgeLink\knowledgeLink\artifacts\web:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/web@1.0.0 build:server: `node server/build.mjs`
+Exit status 1
+Error: Process completed with exit code 1.

@@ -1,0 +1,128 @@
+> Task :expo:writeReleaseAarMetadata
+> Task :expo-constants:writeReleaseAarMetadata
+> Task :expo-modules-core:writeReleaseAarMetadata
+> Task :react-native-async-storage_async-storage:writeReleaseAarMetadata
+> Task :react-native-gesture-handler:writeReleaseAarMetadata
+> Task :react-native-keyboard-controller:writeReleaseAarMetadata
+> Task :react-native-safe-area-context:writeReleaseAarMetadata
+> Task :react-native-screens:writeReleaseAarMetadata
+> Task :react-native-svg:writeReleaseAarMetadata
+> Task :react-native-worklets:writeReleaseAarMetadata
+
+> Task :app:createBundleReleaseJsAndAssets
+React Compiler enabled
+Starting Metro Bundler
+Android node_modules/.pnpm/expo-router@6.0.24_468cc1c3b117db7431035b594f837029/node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+SyntaxError: ../../node_modules/.pnpm/expo-router@6.0.24_468cc1c3b117db7431035b594f837029/node_modules/expo-router/entry.js: Cannot find module 'babel-preset-expo'
+Android Bundling failed 461ms node_modules/.pnpm/expo-router@6.0.24_468cc1c3b117db7431035b594f837029/node_modules/expo-router/entry.js (1 module)
+Require stack:
+- /home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@babel+core@7.29.0/node_modules/@babel/core/lib/config/files/plugins.js
+- /home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@babel+core@7.29.0/node_modules/@babel/core/lib/config/files/index.js
+- /home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@babel+core@7.29.0/node_modules/@babel/core/lib/index.js
+- /home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@expo+metro-config@54.0.16_bufferutil@4.1.0_expo@54.0.35/node_modules/@expo/metro-config/build/transform-worker/metro-transform-worker.js
+- /home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@expo+metro-config@54.0.16_bufferutil@4.1.0_expo@54.0.35/node_modules/@expo/metro-config/build/transform-worker/transform-worker.js
+- /home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/metro@0.83.3_bufferutil@4.1.0/node_modules/metro/src/DeltaBundler/Worker.flow.js
+- /home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/metro@0.83.3_bufferutil@4.1.0/node_modules/metro/src/DeltaBundler/Worker.js
+- /home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/jest-worker@29.7.0/node_modules/jest-worker/build/workers/processChild.js
+
+Make sure that all the Babel plugins and presets you are using
+are defined as dependencies or devDependencies in your package.json
+file. It's possible that the missing plugin is loaded by a preset
+you are using that forgot to add the plugin to its dependencies: you
+can workaround this problem by explicitly adding the missing package
+to your top-level package.json.
+
+Error: Cannot find module 'babel-preset-expo'
+Require stack:
+- /home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@babel+core@7.29.0/node_modules/@babel/core/lib/config/files/plugins.js
+- /home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@babel+core@7.29.0/node_modules/@babel/core/lib/config/files/index.js
+- /home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@babel+core@7.29.0/node_modules/@babel/core/lib/index.js
+- /home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@expo+metro-config@54.0.16_bufferutil@4.1.0_expo@54.0.35/node_modules/@expo/metro-config/build/transform-worker/metro-transform-worker.js
+- /home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@expo+metro-config@54.0.16_bufferutil@4.1.0_expo@54.0.35/node_modules/@expo/metro-config/build/transform-worker/transform-worker.js
+- /home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/metro@0.83.3_bufferutil@4.1.0/node_modules/metro/src/DeltaBundler/Worker.flow.js
+- /home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/metro@0.83.3_bufferutil@4.1.0/node_modules/metro/src/DeltaBundler/Worker.js
+- /home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/jest-worker@29.7.0/node_modules/jest-worker/build/workers/processChild.js
+
+Make sure that all the Babel plugins and presets you are using
+are defined as dependencies or devDependencies in your package.json
+file. It's possible that the missing plugin is loaded by a preset
+you are using that forgot to add the plugin to its dependencies: you
+can workaround this problem by explicitly adding the missing package
+to your top-level package.json.
+
+    at Function._resolveFilename (node:internal/modules/cjs/loader:1365:15)
+    at resolve (node:internal/modules/helpers:145:19)
+    at tryRequireResolve (/home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@babel+core@7.29.0/node_modules/@babel/core/lib/config/files/plugins.js:128:11)
+    at resolveStandardizedNameForRequire (/home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@babel+core@7.29.0/node_modules/@babel/core/lib/config/files/plugins.js:162:19)
+    at resolveStandardizedName (/home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@babel+core@7.29.0/node_modules/@babel/core/lib/config/files/plugins.js:183:12)
+    at loadPreset (/home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@babel+core@7.29.0/node_modules/@babel/core/lib/config/files/plugins.js:68:7)
+
+    at loadPreset.next (<anonymous>)
+> Task :app:createBundleReleaseJsAndAssets FAILED
+    at createDescriptor (/home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@babel+core@7.29.0/node_modules/@babel/core/lib/config/config-descriptors.js:140:16)
+    at createDescriptor.next (<anonymous>)
+    at evaluateSync (/home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/gensync@1.0.0-beta.2/node_modules/gensync/index.js:251:28)
+    at /home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/gensync@1.0.0-beta.2/node_modules/gensync/index.js:31:34
+    at Array.map (<anonymous>)
+    at Function.sync (/home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/gensync@1.0.0-beta.2/node_modules/gensync/index.js:31:22)
+    at Function.all (/home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/gensync@1.0.0-beta.2/node_modules/gensync/index.js:210:24)
+    at Generator.next (<anonymous>)
+    at createDescriptors (/home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@babel+core@7.29.0/node_modules/@babel/core/lib/config/config-descriptors.js:102:41)
+    at createDescriptors.next (<anonymous>)
+    at createPresetDescriptors (/home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@babel+core@7.29.0/node_modules/@babel/core/lib/config/config-descriptors.js:96:17)
+    at createPresetDescriptors.next (<anonymous>)
+    at /home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@babel+core@7.29.0/node_modules/@babel/core/lib/gensync-utils/functional.js:22:27
+    at Generator.next (<anonymous>)
+    at mergeChainOpts (/home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@babel+core@7.29.0/node_modules/@babel/core/lib/config/config-chain.js:350:34)
+    at mergeChainOpts.next (<anonymous>)
+    at chainWalker (/home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@babel+core@7.29.0/node_modules/@babel/core/lib/config/config-chain.js:316:14)
+    at chainWalker.next (<anonymous>)
+    at loadFileChain (/home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@babel+core@7.29.0/node_modules/@babel/core/lib/config/config-chain.js:191:24)
+    at loadFileChain.next (<anonymous>)
+    at mergeExtendsChain (/home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@babel+core@7.29.0/node_modules/@babel/core/lib/config/config-chain.js:328:28)
+    at mergeExtendsChain.next (<anonymous>)
+    at chainWalker (/home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@babel+core@7.29.0/node_modules/@babel/core/lib/config/config-chain.js:312:20)
+    at chainWalker.next (<anonymous>)
+    at buildRootChain (/home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@babel+core@7.29.0/node_modules/@babel/core/lib/config/config-chain.js:56:36)
+    at buildRootChain.next (<anonymous>)
+    at loadPrivatePartialConfig (/home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@babel+core@7.29.0/node_modules/@babel/core/lib/config/partial.js:72:62)
+    at loadPrivatePartialConfig.next (<anonymous>)
+    at loadFullConfig (/home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@babel+core@7.29.0/node_modules/@babel/core/lib/config/full.js:36:46)
+    at loadFullConfig.next (<anonymous>)
+    at transform (/home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@babel+core@7.29.0/node_modules/@babel/core/lib/transform.js:20:44)
+    at transform.next (<anonymous>)
+    at evaluateSync (/home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/gensync@1.0.0-beta.2/node_modules/gensync/index.js:251:28)
+    at sync (/home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/gensync@1.0.0-beta.2/node_modules/gensync/index.js:89:14)
+    at stopHiding - secret - don't use this - v1 (/home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@babel+core@7.29.0/node_modules/@babel/core/lib/errors/rewrite-stack-trace.js:47:12)
+    at Object.transformSync (/home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@babel+core@7.29.0/node_modules/@babel/core/lib/transform.js:40:76)
+    at parseWithBabel (/home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@expo+metro-config@54.0.16_bufferutil@4.1.0_expo@54.0.35/node_modules/@expo/metro-config/build/transformSync.js:75:18)
+    at transformSync (/home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@expo+metro-config@54.0.16_bufferutil@4.1.0_expo@54.0.35/node_modules/@expo/metro-config/build/transformSync.js:64:12)
+    at Object.transform (/home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@expo+metro-config@54.0.16_bufferutil@4.1.0_expo@54.0.35/node_modules/@expo/metro-config/build/babel-transformer.js:127:58)
+    at transformJSWithBabel (/home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@expo+metro-config@54.0.16_bufferutil@4.1.0_expo@54.0.35/node_modules/@expo/metro-config/build/transform-worker/metro-transform-worker.js:468:47)
+    at Object.transform (/home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@expo+metro-config@54.0.16_bufferutil@4.1.0_expo@54.0.35/node_modules/@expo/metro-config/build/transform-worker/metro-transform-worker.js:583:12)
+    at Object.transform (/home/runner/work/knowledgeLink/knowledgeLink/node_modules/.pnpm/@expo+metro-config@54.0.16_bufferutil@4.1.0_expo@54.0.35/node_modules/@expo/metro-config/build/transform-worker/transform-worker.js:178:19)
+> Task :react-native-reanimated:buildCMakeRelWithDebInfo[x86][reanimated]
+
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:createBundleReleaseJsAndAssets'.
+> Process 'command 'node'' finished with non-zero exit value 1
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 7m 53s
+[Incubating] Problems report is available at: file:///home/runner/work/knowledgeLink/knowledgeLink/artifacts/mobile/android/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+229 actionable tasks: 229 executed
+Error: Process completed with exit code 1.
