@@ -1,1 +1,4 @@
-404: Not Found
+# Placeholder — no Android build configured yet.
+name: _disabled
+
+on: []

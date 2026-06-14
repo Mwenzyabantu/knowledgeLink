@@ -1,54 +1,48 @@
 import { useState, useEffect } from "react";
-import { Minus, X } from "lucide-react";
+import { Minus, Square, X, Maximize2 } from "lucide-react";
 
 declare global {
   interface Window {
-    electronAPI?: {
-      platform: string;
+    windowBridge?: {
+      minimize: () => Promise<void>;
+      maximize: () => Promise<void>;
+      close: () => Promise<void>;
+      isMaximized: () => Promise<boolean>;
+      onMaximizeChanged: (cb: (val: boolean) => void) => () => void;
+    };
+    electronBridge?: {
       isElectron: boolean;
-      windowControls?: {
-        minimize: () => void;
-        maximize: () => void;
-        close: () => void;
-        onMaximizedChange: (cb: (isMaximized: boolean) => void) => void;
-      };
+      platform: string;
     };
   }
 }
 
-function MaximizeIcon({ isMaximized }: { isMaximized: boolean }) {
-  if (isMaximized) {
-    return (
-      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.1">
-        <rect x="3" y="1" width="6" height="6" rx="0.5" />
-        <path d="M1 3v5.5A0.5 0.5 0 0 0 1.5 9H7" />
-      </svg>
-    );
-  }
-  return (
-    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.1">
-      <rect x="1" y="1" width="8" height="8" rx="0.5" />
-    </svg>
-  );
-}
+const isElectron =
+  typeof window !== "undefined" && !!window.electronBridge?.isElectron;
+
+const isMac =
+  typeof window !== "undefined" && window.electronBridge?.platform === "darwin";
 
 export function ElectronTitleBar() {
   const [isMaximized, setIsMaximized] = useState(false);
 
   useEffect(() => {
-    window.electronAPI?.windowControls?.onMaximizedChange((val) => {
-      setIsMaximized(val);
-    });
+    if (isMac || !window.windowBridge) return;
+
+    window.windowBridge.isMaximized().then(setIsMaximized);
+    const unsub = window.windowBridge.onMaximizeChanged(setIsMaximized);
+    return unsub;
   }, []);
 
-  if (!window.electronAPI?.isElectron) return null;
+  if (!isElectron) return null;
 
-  const controls = window.electronAPI.windowControls;
+  // On macOS, native traffic lights handle window controls — no custom bar needed
+  if (isMac) return null;
 
   return (
     <div
-      className="flex items-center justify-between h-8 flex-shrink-0 select-none bg-sidebar border-b border-sidebar-border"
-      style={{ WebkitAppRegion: "drag" } as React.CSSProperties & { WebkitAppRegion: string }}
+      className="flex items-center justify-between h-8 w-full shrink-0 select-none bg-sidebar border-b border-sidebar-border"
+      style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
     >
       <div className="flex items-center gap-2 px-3">
         <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center">
@@ -58,29 +52,29 @@ export function ElectronTitleBar() {
       </div>
 
       <div
-        className="flex h-full"
-        style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties & { WebkitAppRegion: string }}
+        className="flex h-full items-stretch"
+        style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
       >
         <button
-          onClick={() => controls?.minimize()}
+          onClick={() => window.windowBridge?.minimize()}
           title="Minimize"
-          className="flex items-center justify-center w-11 h-full text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors duration-100"
+          className="flex items-center justify-center w-11 h-full text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors duration-100 focus:outline-none"
         >
           <Minus className="h-[11px] w-[11px]" />
         </button>
 
         <button
-          onClick={() => controls?.maximize()}
+          onClick={() => window.windowBridge?.maximize()}
           title={isMaximized ? "Restore" : "Maximize"}
-          className="flex items-center justify-center w-11 h-full text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors duration-100"
+          className="flex items-center justify-center w-11 h-full text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors duration-100 focus:outline-none"
         >
-          <MaximizeIcon isMaximized={isMaximized} />
+          {isMaximized ? <Square size={11} /> : <Maximize2 size={12} />}
         </button>
 
         <button
-          onClick={() => controls?.close()}
+          onClick={() => window.windowBridge?.close()}
           title="Close"
-          className="flex items-center justify-center w-11 h-full text-sidebar-foreground/50 hover:text-white hover:bg-red-500 transition-colors duration-100"
+          className="flex items-center justify-center w-11 h-full text-sidebar-foreground/50 hover:text-white hover:bg-red-500 transition-colors duration-100 focus:outline-none"
         >
           <X className="h-[12px] w-[12px]" />
         </button>

@@ -8,7 +8,7 @@
  * 3. Load the built React frontend from the local filesystem (no hosting needed).
  */
 
-const { app, BrowserWindow, shell, Menu, dialog, ipcMain, nativeTheme } = require("electron");
+const { app, BrowserWindow, shell, Menu, dialog, ipcMain } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { spawn } = require("child_process");
@@ -19,18 +19,18 @@ function getServerPath() {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, "server", "index.mjs");
   }
-  // Dev: use the locally-built dist-server
-  return path.resolve(__dirname, "..", "..", "..", "artifacts", "web", "dist-server", "index.mjs");
+  // Dev: go up 2 levels from desktop/src/ to reach the workspace root
+  return path.resolve(__dirname, "..", "..", "artifacts", "web", "dist-server", "index.mjs");
 }
 
 function getFrontendPath() {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, "frontend", "index.html");
   }
-  return path.resolve(__dirname, "..", "..", "..", "artifacts", "web", "dist", "index.html");
+  return path.resolve(__dirname, "..", "..", "artifacts", "web", "dist", "index.html");
 }
 
-// ─── Config (DATABASE_URL etc.) ───────────────────────────────────────────────
+// ─── Config persistence ───────────────────────────────────────────────────────
 
 function getConfigPath() {
   return path.join(app.getPath("userData"), "knowledgelink-config.json");
@@ -66,7 +66,6 @@ function startApiServer() {
       ...process.env,
       PORT: String(PORT),
       NODE_ENV: "production",
-      // Forward DATABASE_URL from saved config or environment
       ...(savedConfig.DATABASE_URL ? { DATABASE_URL: savedConfig.DATABASE_URL } : {}),
     },
     stdio: ["ignore", "pipe", "pipe"],
@@ -126,6 +125,8 @@ function waitForServer(maxMs = 15000) {
 let mainWindow = null;
 
 function createWindow() {
+  const isMac = process.platform === "darwin";
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -134,21 +135,24 @@ function createWindow() {
     title: "KnowledgeLink",
     backgroundColor: "#F8FAFC",
     icon: path.join(__dirname, "..", "assets", "icon.png"),
-    frame: false,
+    ...(isMac
+      ? { titleBarStyle: "hidden", trafficLightPosition: { x: 14, y: 10 } }
+      : { frame: false }),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
-      preload: path.join(__dirname, "..", "..", "preload.js"),
+      // preload.js lives in the same src/ directory as main.js
+      preload: path.join(__dirname, "preload.js"),
     },
     show: false,
   });
 
-  mainWindow.on("maximize", () => {
-    mainWindow?.webContents.send("window-maximized-change", true);
-  });
-  mainWindow.on("unmaximize", () => {
-    mainWindow?.webContents.send("window-maximized-change", false);
-  });
+  mainWindow.setMenuBarVisibility(false);
+
+  // Forward maximize/unmaximize events to the renderer
+  const sendMaximize = (val) => mainWindow?.webContents.send("window:maximizeChanged", val);
+  mainWindow.on("maximize",   () => sendMaximize(true));
+  mainWindow.on("unmaximize", () => sendMaximize(false));
 
   const frontendPath = getFrontendPath();
 
@@ -237,17 +241,15 @@ function buildMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-// ─── Window control IPC ───────────────────────────────────────────────────────
+// ─── IPC handlers — window controls ───────────────────────────────────────────
 
-ipcMain.on("window-minimize", () => mainWindow?.minimize());
-ipcMain.on("window-maximize", () => {
-  if (mainWindow?.isMaximized()) {
-    mainWindow.unmaximize();
-  } else {
-    mainWindow?.maximize();
-  }
+ipcMain.handle("window:minimize",    () => mainWindow?.minimize());
+ipcMain.handle("window:maximize",    () => {
+  if (!mainWindow) return;
+  mainWindow.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize();
 });
-ipcMain.on("window-close", () => mainWindow?.close());
+ipcMain.handle("window:close",       () => mainWindow?.close());
+ipcMain.handle("window:isMaximized", () => mainWindow?.isMaximized() ?? false);
 
 // ─── App lifecycle ────────────────────────────────────────────────────────────
 

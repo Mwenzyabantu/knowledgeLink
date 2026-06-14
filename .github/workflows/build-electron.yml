@@ -1,1 +1,4 @@
-404: Not Found
+# Superseded by desktop-build.yml — see that file for the active Electron build workflow.
+name: _disabled
+
+on: []

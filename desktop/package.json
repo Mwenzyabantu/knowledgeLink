@@ -1,0 +1,20 @@
+{
+  "name": "knowledgelink-desktop",
+  "version": "1.0.0",
+  "description": "KnowledgeLink — AI-powered learning platform",
+  "author": "KnowledgeLink",
+  "main": "src/main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:linux": "electron-builder --linux",
+    "dist:mac": "electron-builder --mac"
+  },
+  "devDependencies": {
+    "electron": "^34.0.0",
+    "electron-builder": "^25.0.0"
+  }
+}
