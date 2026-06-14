@@ -50,6 +50,14 @@ export default defineConfig({
       strict: false,
     },
   },
+  define: {
+    // Forward the server-side SUPABASE_ANON_KEY into the Vite bundle so the
+    // client can access it as import.meta.env.VITE_SUPABASE_ANON_KEY without
+    // requiring a separately-named VITE_* secret.
+    "import.meta.env.VITE_SUPABASE_ANON_KEY": JSON.stringify(
+      process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? ""
+    ),
+  },
   optimizeDeps: {
     // Pre-bundle these together so the optimizer never splits them across
     // separate chunks (which is another source of the duplicate-React problem).
