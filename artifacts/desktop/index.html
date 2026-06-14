@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KnowledgeLink</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #F8FAFC;
+      color: #1C1A17;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+      text-align: center;
+    }
+    .logo {
+      width: 80px;
+      height: 80px;
+      background: #E6850A;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 24px;
+      font-size: 32px;
+      font-weight: 700;
+      color: white;
+    }
+    h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+    p { font-size: 16px; color: #64748B; margin-bottom: 32px; max-width: 400px; }
+    .btn {
+      display: inline-block;
+      padding: 12px 24px;
+      background: #E6850A;
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 16px;
+      transition: opacity 0.2s;
+    }
+    .btn:hover { opacity: 0.9; }
+    .offline { color: #EF4444; font-size: 14px; margin-top: 16px; }
+    .info { margin-top: 32px; font-size: 13px; color: #94A3B8; }
+  </style>
+</head>
+<body>
+  <div class="logo">KL</div>
+  <h1>KnowledgeLink</h1>
+  <p>AI-powered learning platform. Master complex concepts through 5W+H breakdowns, personalized projects, and hands-on simulations.</p>
+  <a id="app-link" class="btn" href="https://knowledgelink.vercel.app">Open KnowledgeLink</a>
+  <p id="offline-msg" class="offline" style="display:none;">You are offline. Please connect to the internet to use KnowledgeLink.</p>
+  <p class="info">If the app doesn't open, visit <a href="https://knowledgelink.vercel.app">knowledgelink.vercel.app</a> in your browser.</p>
+
+  <script>
+    // Check if we're online and redirect to the app
+    if (navigator.onLine) {
+      window.location.href = 'https://knowledgelink.vercel.app';
+    } else {
+      document.getElementById('offline-msg').style.display = 'block';
+    }
+  </script>
+</body>
+</html>

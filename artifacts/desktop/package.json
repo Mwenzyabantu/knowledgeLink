@@ -1,0 +1,24 @@
+{
+  "name": "knowledgelink-desktop",
+  "version": "1.0.0",
+  "description": "KnowledgeLink — AI-powered learning platform",
+  "author": "KnowledgeLink",
+  "main": "src/main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "build:server": "pnpm --filter @workspace/web run build:server",
+    "build:frontend": "cross-env BASE_PATH=./ pnpm --filter @workspace/web run build",
+    "build:all": "pnpm run build:server && pnpm run build:frontend",
+    "pack": "pnpm run build:all && electron-builder --dir",
+    "dist": "pnpm run build:all && electron-builder",
+    "dist:win": "pnpm run build:all && electron-builder --win",
+    "dist:linux": "pnpm run build:all && electron-builder --linux",
+    "dist:mac": "pnpm run build:all && electron-builder --mac"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^34.0.0",
+    "electron-builder": "^25.0.0"
+  }
+}

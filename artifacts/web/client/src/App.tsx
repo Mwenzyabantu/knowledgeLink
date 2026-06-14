@@ -34,6 +34,7 @@ import Signup from "@/pages/auth/signup";
 
 import { UserAvatar } from "@/components/user-avatar";
 import { useAuth } from "@/hooks/use-auth";
+import { ElectronTitleBar } from "@/components/electron-title-bar";
 
 function HeaderUserSection() {
   const { user } = useAuth();
@@ -209,6 +210,7 @@ function App() {
           <AuthProvider>
             <TooltipProvider>
               <div className="min-h-screen bg-background flex flex-col">
+                <ElectronTitleBar />
                 <header className="flex items-center justify-between px-4 py-3 border-b bg-background flex-shrink-0">
                   <div className="font-bold text-xl text-primary">KnowledgeLInk</div>
                   <ThemeToggle />
@@ -238,7 +240,9 @@ function App() {
         <AuthProvider>
           <TooltipProvider>
             <SidebarProvider style={sidebarStyle}>
-              <div className="layout-container h-screen w-full flex overflow-hidden">
+              <div className="layout-container h-screen w-full flex flex-col overflow-hidden">
+                <ElectronTitleBar />
+                <div className="flex flex-1 overflow-hidden">
                 <AppSidebar />
                 <MainContent delayedAnimation={delayedAnimation} shouldAnimate={shouldAnimate}>
                   <main className="flex-1 overflow-y-auto p-4 md:p-6 flex flex-col">
@@ -250,6 +254,7 @@ function App() {
                     </div>
                   </main>
                 </MainContent>
+                </div>
               </div>
             </SidebarProvider>
             <Toaster />

@@ -1,0 +1,54 @@
+appId: "com.knowledgelink.desktop"
+productName: "KnowledgeLink"
+copyright: "Copyright © 2025 KnowledgeLink"
+
+directories:
+  output: dist
+  buildResources: assets
+
+# Electron app source files
+files:
+  - src/**/*
+
+# Built server + built frontend bundled alongside the binary
+extraResources:
+  # Bundled Express API server
+  - from: "../artifacts/web/dist-server/"
+    to: "server/"
+    filter: ["**/*"]
+  # Built React frontend (loaded via file://)
+  - from: "../artifacts/web/dist/"
+    to: "frontend/"
+    filter: ["**/*"]
+
+# ── Windows ────────────────────────────────────────────────────────────────────
+win:
+  icon: assets/icon.png
+  target:
+    - target: nsis
+      arch: [x64]
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: "KnowledgeLink"
+
+# ── Linux ──────────────────────────────────────────────────────────────────────
+linux:
+  icon: assets/icon.png
+  category: Education
+  target:
+    - target: AppImage
+      arch: [x64]
+
+# ── macOS ──────────────────────────────────────────────────────────────────────
+mac:
+  icon: assets/icon.png
+  category: public.app-category.education
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+
+publish: null
