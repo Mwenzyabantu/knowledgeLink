@@ -6,3 +6,4 @@
 - [Canonical project lineage](canonical-project.md) — this workspace is the mother/original reference; compare forks against it and preserve it as the baseline.
 - [Protected root imports](protected-root-imports.md) — replace project files without copying or deleting `.git` or Replit-managed workspace directories.
 - [Electron in Replit](electron-replit.md) — install its Nix desktop libraries; verify VNC despite possible DBus/GPU warnings.
+- [Windows Electron listener](electron-windows-listen.md) — KnowledgeLink's packaged Windows server fails at startup when `reusePort: true` is passed to `listen()`.

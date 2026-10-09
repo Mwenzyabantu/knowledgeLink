@@ -1,0 +1,26 @@
+Microsoft Windows [Version 10.0.26100.8457]
+(c) Microsoft Corporation. All rights reserved.
+
+C:\Users\mweny>powershell -NoProfile -ExecutionPolicy Bypass -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('C:\Users\mweny\Desktop\KnowledgeLink.lnk'); if (-not (Test-Path -LiteralPath $s.TargetPath)) { Write-Host ('Shortcut target not found: ' + $s.TargetPath); exit 2 }; $wd=$s.WorkingDirectory; if ([string]::IsNullOrWhiteSpace($wd)) { $wd=Split-Path -Parent $s.TargetPath }; $log='C:\Users\mweny\Desktop\KnowledgeLink-launch.log'; $err='C:\Users\mweny\Desktop\KnowledgeLink-launch-error.log'; $launchArgs=($s.Arguments + ' --enable-logging=stderr --v=1').Trim(); Write-Host ('Target: ' + $s.TargetPath); Write-Host ('Working folder: ' + $wd); $p=Start-Process -FilePath $s.TargetPath -ArgumentList $launchArgs -WorkingDirectory $wd -RedirectStandardOutput $log -RedirectStandardError $err -Wait -PassThru; Write-Host ('Exit code: ' + $p.ExitCode); Write-Host ('Error log: ' + $err); if (Test-Path $err) { Get-Content $err -Tail 80 } else { Write-Host 'No error log was created.' }"
+Target: C:\Users\mweny\AppData\Local\Programs\rest-express\KnowledgeLink.exe
+Working folder: C:\Users\mweny\AppData\Local\Programs\rest-express
+Exit code: 1
+Error log: C:\Users\mweny\Desktop\KnowledgeLink-launch-error.log
+[17404:1009/172201.381:VERBOSE1:base\allocator\scheduler_loop_quarantine_config.cc:195] No entry found for browser/global.
+[17404:1009/172201.382:VERBOSE1:base\allocator\scheduler_loop_quarantine_config.cc:195] No entry found for browser/*.
+[17404:1009/172202.083:VERBOSE1:components\device_event_log\device_event_log_impl.cc:214] [17:22:02.084] Display: EVENT: screen_win.cc:1103 Displays updated, count: 1
+[17404:1009/172202.086:VERBOSE1:components\device_event_log\device_event_log_impl.cc:214] [17:22:02.087] Display: EVENT: screen_win.cc:1105 Display[2348345239] bounds=[0,0 1366x768], workarea=[0,0 1366x768], scale=1, rotation=0, panel_rotation=0 external detected
+[17404:1009/172202.088:VERBOSE1:components\proxy_config\pref_proxy_config_tracker_impl.cc:466] 0x4b14002e8340: set chrome proxy config service to 0x4b14001c5e00
+CRITICAL: Uncaught Exception thrown: Error: listen ENOTSUP: operation not supported on socket 127.0.0.1:7841
+    at Server.setupListenHandle [as _listen2] (node:net:2306:21)
+    at listenInCluster (node:net:2437:12)
+    at node:net:2666:7
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'ENOTSUP',
+  errno: -4049,
+  syscall: 'listen',
+  address: '127.0.0.1',
+  port: 7841
+}
+
+C:\Users\mweny>
