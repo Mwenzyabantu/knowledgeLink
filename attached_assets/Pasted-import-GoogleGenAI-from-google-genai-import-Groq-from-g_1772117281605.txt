@@ -1,0 +1,2218 @@
+import { GoogleGenAI } from "@google/genai";
+import Groq from "groq-sdk";
+
+// Initialize AI clients with validation logging
+const geminiApiKey = process.env.GEMINI_API_KEY || "";
+const groqApiKey = process.env.GROQ_API_KEY || "";
+
+const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+const groq = new Groq({ apiKey: groqApiKey });
+
+// Validate AI services on startup
+export function validateAIServices(): void {
+  console.log("🔍 AI Services Validation:");
+  console.log(
+    `✓ Gemini API Key: ${geminiApiKey ? "✅ Configured" : "❌ MISSING - Groq will be used as primary"}`,
+  );
+  console.log(
+    `✓ Groq API Key: ${groqApiKey ? "✅ Configured" : "❌ MISSING - No fallback available"}`,
+  );
+
+  if (!geminiApiKey) {
+    console.warn(
+      "⚠️  WARNING: Gemini API key not found. All Gemini calls will fall back to Groq.",
+    );
+  }
+}
+
+/**
+ * Safely extract and validate JSON from text
+ * Uses bracket counting to find complete JSON objects
+ * Also handles malformed JSON with unescaped newlines
+ */
+export function extractValidJSON(text: string): any {
+  text = text.trim();
+
+  // Find first opening brace
+  const startIdx = text.indexOf("{");
+  if (startIdx === -1) {
+    throw new Error("No JSON object found in response");
+  }
+
+  // Count brackets to find matching closing brace
+  let braceCount = 0;
+  let endIdx = -1;
+  let inString = false;
+  let escapeNext = false;
+
+  for (let i = startIdx; i < text.length; i++) {
+    const char = text[i];
+
+    // Handle escape sequences
+    if (escapeNext) {
+      escapeNext = false;
+      continue;
+    }
+
+    if (char === "\\") {
+      escapeNext = true;
+      continue;
+    }
+
+    // Track if we're inside a string
+    if (char === '"' && !escapeNext) {
+      inString = !inString;
+      continue;
+    }
+
+    // Count braces only outside of strings
+    if (!inString) {
+      if (char === "{") braceCount++;
+      else if (char === "}") {
+        braceCount--;
+        if (braceCount === 0) {
+          endIdx = i + 1;
+          break;
+        }
+      }
+    }
+  }
+
+  if (endIdx === -1) {
+    throw new Error("Incomplete JSON object - unmatched braces");
+  }
+
+  let jsonStr = text.substring(startIdx, endIdx);
+
+  try {
+    return JSON.parse(jsonStr);
+  } catch (parseError) {
+    // Try to fix common malformed JSON issues: unescaped newlines in strings
+    console.warn("Initial JSON parse failed, attempting to repair...");
+
+    // Replace literal newlines inside strings with escaped newlines
+    jsonStr = jsonStr.replace(/"([^"\\]|\\.)*"/g, (match) => {
+      return match
+        .replace(/\n/g, "\\n")
+        .replace(/\r/g, "\\r")
+        .replace(/\t/g, "\\t");
+    });
+
+    // Fix unescaped triple quotes which sometimes happen in AI responses for code
+    jsonStr = jsonStr.replace(/"""/g, '\\"\\"\\"');
+
+    // Fix missing closing quotes or braces at the end if truncated
+    if (!jsonStr.trim().endsWith('}') && !jsonStr.trim().endsWith(']')) {
+      if (inString) jsonStr += '"';
+      while (braceCount > 0) {
+        jsonStr += '}';
+        braceCount--;
+      }
+    }
+
+    try {
+      console.log("Successfully repaired JSON");
+      return JSON.parse(jsonStr);
+    } catch (retryError) {
+      console.error(
+        "JSON parse error. Attempted to parse:",
+        jsonStr.substring(0, 300) + "...",
+      );
+      throw retryError;
+    }
+  }
+}
+
+/**
+ * Score and rank resources by relevance to a specific prerequisite
+ * Uses AI to evaluate how well each resource matches the learning need
+ */
+export async function scoreResources(
+  prerequisite: string,
+  resources: any[],
+): Promise<any[]> {
+  if (resources.length === 0) return [];
+
+  try {
+    const resourceDescriptions = resources
+      .map(
+        (r, i) =>
+          `${i + 1}. "${r.title}" (${r.type} from ${r.source})${r.snippet ? ": " + r.snippet : ""}`,
+      )
+      .join("\n");
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: `For the prerequisite: "${prerequisite}"
+
+Rate each resource by relevance (0-1 scale). Return ONLY a JSON array of numbers, one per resource, in the same order.
+
+Resources:
+${resourceDescriptions}
+
+Example response: [0.95, 0.7, 0.5]`,
+            },
+          ],
+        },
+      ],
+    });
+
+    const content = response.candidates?.[0]?.content?.parts?.[0];
+    if (!content || !("text" in content)) {
+      console.warn("No scoring response from AI");
+      // Return resources with default scores if AI fails
+      return resources.map((r, i) => ({ ...r, relevanceScore: 1 - i * 0.1 }));
+    }
+
+    try {
+      const scores = JSON.parse(content.text || "[]");
+      return resources.map((resource, index) => ({
+        ...resource,
+        relevanceScore: scores[index] ?? 0.5,
+      }));
+    } catch {
+      // If parsing fails, assign descending scores
+      return resources.map((resource, index) => ({
+        ...resource,
+        relevanceScore: Math.max(0, 1 - index * 0.15),
+      }));
+    }
+  } catch (error) {
+    console.error("AI resource scoring failed:", error);
+    // Fallback: assign descending scores
+    return resources.map((resource, index) => ({
+      ...resource,
+      relevanceScore: Math.max(0, 1 - index * 0.15),
+    }));
+  }
+}
+
+export async function generateLearnerProfile(concepts: any[]): Promise<string> {
+  if (concepts.length === 0) return "New learner with no prior knowledge.";
+
+  const systemPrompt = `You are an expert learning analyst. Create a concise, insightful profile of a learner based on their learning history.
+The profile should help another AI understand:
+1. What domains they've mastered
+2. Their learning patterns and interests
+3. Knowledge gaps and next steps
+4. Real-world application focus areas
+
+Be specific and actionable. Keep it to 300-400 words.`;
+
+  const learningHistory = concepts
+    .map(
+      (c, i) =>
+        `${i + 1}. ${c.title} (${c.category})\n   Learned: ${c.what}\n   Applications: ${c.where.slice(0, 2).join(", ")}`,
+    )
+    .join("\n\n");
+
+  try {
+    const response = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content: systemPrompt,
+        },
+        {
+          role: "user",
+          content: `Generate a learner profile based on this learning history:\n\n${learningHistory}`,
+        },
+      ],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.7,
+      max_tokens: 800,
+    });
+
+    return (
+      response.choices[0]?.message?.content?.trim() ||
+      "Learner profile generation failed"
+    );
+  } catch (error) {
+    console.error("Learner profile generation failed:", error);
+    return "Unable to generate learner profile";
+  }
+}
+
+export async function generateResourceQueries(
+  conceptTitle: string,
+  category: string,
+): Promise<string[]> {
+  try {
+    const response = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content:
+            "Generate 5 concise, specific Google search queries to find educational resources for a concept. Return ONLY a JSON array of strings, one per line.",
+        },
+        {
+          role: "user",
+          content: `Generate search queries for: ${conceptTitle} (Category: ${category})`,
+        },
+      ],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.5,
+      max_tokens: 300,
+    });
+
+    const text = response.choices[0]?.message?.content?.trim() || "[]";
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text
+        .split("\n")
+        .filter((q) => q.trim())
+        .slice(0, 5);
+    }
+  } catch (error) {
+    console.error("Resource query generation failed:", error);
+    return [];
+  }
+}
+
+export interface ResourceResult {
+  title: string;
+  url: string;
+  source: string;
+  type: string;
+  description: string;
+}
+
+export async function rankResourcesRelevance(
+  conceptTitle: string,
+  resources: ResourceResult[],
+): Promise<ResourceResult[]> {
+  if (resources.length === 0) return [];
+
+  const resourceList = resources
+    .map(
+      (r, i) =>
+        `${i + 1}. "${r.title}" (${r.source}) - ${r.description?.substring(0, 100) || ""}`,
+    )
+    .join("\n");
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: `Rank these resources by relevance to teaching "${conceptTitle}". Return a JSON array with indices in order of relevance (most to least relevant).
+
+Resources:
+${resourceList}
+
+Return ONLY: {"order": [indices in order]}`,
+    });
+
+    const text = response.text || "";
+    try {
+      const parsed = JSON.parse(text);
+      const order = parsed.order || [];
+      return order.map((idx: number) => resources[idx]).filter((r: any) => r);
+    } catch {
+      return resources;
+    }
+  } catch (error) {
+    console.error("Resource ranking failed:", error);
+    return resources;
+  }
+}
+
+export interface FiveWHResult {
+  title: string;
+  category: string;
+  problem: string;
+  what: string;
+  why: string;
+  how: string;
+  where: string[];
+  who: string;
+  when: string;
+  pseudocode?: string;
+}
+
+export async function generate5WH(userInput: string): Promise<FiveWHResult> {
+  const systemPrompt = `You are an educational AI that helps learners connect concepts to real-world problems.
+Analyze the user's learning input and extract a comprehensive 5W+H breakdown.
+
+Focus on:
+- WHAT: Core concept explanation
+- WHY: Real-world importance and relevance
+- HOW: Mechanism, process, or implementation
+- WHERE: Specific real-world applications (list 3-5 concrete examples)
+- WHO: People or professions who use this
+- WHEN: Historical context or timeline
+- PSEUDOCODE: Only if it's a technical/programming concept
+
+Also identify:
+- TITLE: Short, clear title for the concept
+- CATEGORY: Subject area (Physics, Biology, Math, CS, etc.)
+- PROBLEM: What real-world problem does this solve?
+
+Return valid JSON in this exact format:
+{
+  "title": "Concept Name",
+  "category": "Subject",
+  "problem": "What problem does this solve?",
+  "what": "Core explanation",
+  "why": "Why it matters",
+  "how": "How it works",
+  "where": ["Application 1", "Application 2", "Application 3"],
+  "who": "Who uses this",
+  "when": "Historical context",
+  "pseudocode": "Optional pseudocode if technical"
+}`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      config: {
+        systemInstruction: systemPrompt,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            category: { type: "string" },
+            problem: { type: "string" },
+            what: { type: "string" },
+            why: { type: "string" },
+            how: { type: "string" },
+            where: {
+              type: "array",
+              items: { type: "string" },
+            },
+            who: { type: "string" },
+            when: { type: "string" },
+            pseudocode: { type: "string" },
+          },
+          required: [
+            "title",
+            "category",
+            "problem",
+            "what",
+            "why",
+            "how",
+            "where",
+            "who",
+            "when",
+          ],
+        },
+      },
+      contents: userInput,
+    });
+
+    const rawJson = response.text;
+    if (!rawJson) {
+      throw new Error("Empty response from Gemini");
+    }
+
+    const result = JSON.parse(rawJson);
+    return result;
+  } catch (error) {
+    console.error("Gemini 5WH generation failed, falling back to Groq:", error);
+
+    // Fallback to Groq
+    const groqResponse = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content: systemPrompt + "\n\nReturn ONLY valid JSON, nothing else.",
+        },
+        {
+          role: "user",
+          content: userInput,
+        },
+      ],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.7,
+      max_tokens: 2000,
+    });
+
+    const responseText =
+      groqResponse.choices[0]?.message?.content?.trim() || "";
+
+    // Extract JSON from response using safer method
+    const result = extractValidJSON(responseText);
+    return result;
+  }
+}
+
+/**
+ * Suggest 3 dynamic tool alternatives for a project based on its context
+ */
+export async function suggestToolAlternatives(
+  projectName: string,
+  problemAddressed: string,
+  industry: string,
+  currentLanguage: string,
+  excludedLanguages: string[] = []
+): Promise<string[]> {
+  const systemPrompt = `You are a technical architect. Based on the project details, suggest the 3 most professional and valid alternative programming languages or tools that could be used to build this exact same project.
+Consider the industry, problem space, and modern best practices.
+CRITICAL: Do NOT suggest any of these languages: ${excludedLanguages.join(", ")}.
+Return ONLY a JSON array of 3 strings. Example: ["Rust", "Go", "TypeScript"]`;
+
+  const userContext = `Project: ${projectName}
+Problem: ${problemAddressed}
+Industry: ${industry}
+Current Tool: ${currentLanguage}
+
+Suggest 3 alternatives:`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      config: {
+        systemInstruction: systemPrompt,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "array",
+          items: { type: "string" },
+          minItems: 3,
+          maxItems: 3
+        },
+      },
+      contents: userContext,
+    });
+
+    const rawJson = response.text;
+    const result = JSON.parse(rawJson || "[]");
+    return Array.isArray(result) ? result.slice(0, 3) : ["Python", "JavaScript", "C++"];
+  } catch (error) {
+    console.error("Tool suggestion failed, falling back to Groq:", error);
+    
+    try {
+      const groqResponse = await groq.chat.completions.create({
+        messages: [
+          {
+            role: "system",
+            content: systemPrompt,
+          },
+          {
+            role: "user",
+            content: userContext,
+          },
+        ],
+        model: "llama-3.3-70b-versatile",
+        temperature: 0.5,
+        max_tokens: 300,
+      });
+
+      const responseText = groqResponse.choices[0]?.message?.content?.trim() || "[]";
+      const result = extractValidJSON(responseText);
+      return Array.isArray(result) ? result.slice(0, 3) : ["Python", "JavaScript", "C++"];
+    } catch (groqError) {
+      console.error("Groq fallback for tool suggestion failed:", groqError);
+      return ["Python", "JavaScript", "C++"].filter(l => l.toLowerCase() !== currentLanguage.toLowerCase()).slice(0, 3);
+    }
+  }
+}
+
+export interface ImplementationPreview {
+  projectName: string;
+  type: string;
+  tool: string;
+  language: string;
+  components: string[];
+  learningGoals: string[];
+  problemAddressed: string;
+  whySuggested: string;
+  realWorldContext: string;
+  industry: string;
+}
+
+/**
+ * Convert an existing project implementation to a new target language/tool
+ * Preserves the "What" and "Why" while rewriting the "How"
+ */
+export async function convertImplementation(
+  implementation: any,
+  targetLanguage: string
+): Promise<Partial<ImplementationPreview> & { instructions: string, code: string, pseudocode: string, flowDiagram: string }> {
+    const systemPrompt = `You are an expert polyglot developer. Your task is to convert an existing project implementation to a new target language/tool.
+CRITICAL:
+1. Keep the project name, problem, real-world context, and industry IDENTICAL.
+2. Rewrite the "How to Build" instructions specifically for ${targetLanguage} best practices.
+3. Translate the code, pseudocode, and flow diagram to ${targetLanguage}.
+4. Ensure the instructions are educational and explain "why" for each step.
+5. Provide a simplified flowchart in the "flowDiagram" field. Use node IDs like A, B, C and labels like A[Label]. Format: A[Start] --> B[Process]. Ensure it represents the logic flow without any 'graph TD' header.
+
+Return valid JSON in this exact format:
+{
+  "code": "The full source code",
+  "pseudocode": "Step-by-step algorithm",
+  "flowDiagram": "A[Start] --> B[Process]\nB --> C[End]",
+  "instructions": "Detailed numbered build steps",
+  "language": "${targetLanguage}",
+  "tool": "${targetLanguage}"
+}`;
+
+  const currentContext = `Current Project: ${implementation.projectName}
+Problem: ${implementation.problemAddressed}
+Context: ${implementation.realWorldContext}
+Industry: ${implementation.industry}
+Target Language: ${targetLanguage}
+
+Original Instructions to convert:
+${implementation.instructions}
+
+Original Code to translate:
+${implementation.code}`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      config: {
+        systemInstruction: systemPrompt,
+        responseMimeType: "application/json",
+      },
+      contents: currentContext,
+    });
+
+    const rawJson = response.text;
+    if (!rawJson) {
+      throw new Error("Empty response from Gemini");
+    }
+
+    // Clean up response string in case of Markdown wrapping or trailing content
+    let cleaned = typeof rawJson === 'string' ? rawJson : JSON.stringify(rawJson);
+    cleaned = cleaned.trim();
+    if (cleaned.startsWith('```json')) {
+      cleaned = cleaned.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    } else if (cleaned.startsWith('```')) {
+      cleaned = cleaned.replace(/^```\n?/, '').replace(/\n?```$/, '');
+    }
+    
+    // Attempt to find the first '{' and last '}' to handle potential preamble/postscript
+    const firstBrace = cleaned.indexOf('{');
+    const lastBrace = cleaned.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1) {
+      cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+    }
+
+    try {
+      const result = JSON.parse(cleaned);
+      return {
+        ...result,
+        instructions: result.instructions
+      };
+    } catch (e) {
+      console.error("Failed to parse AI JSON response:", cleaned);
+      throw e;
+    }
+  } catch (error) {
+    console.error("Implementation conversion failed, falling back to Groq:", error);
+
+    // Fallback to Groq
+    try {
+      const groqResponse = await groq.chat.completions.create({
+        messages: [
+          {
+            role: "system",
+            content: systemPrompt + "\n\nReturn ONLY valid JSON, nothing else.",
+          },
+          {
+            role: "user",
+            content: currentContext,
+          },
+        ],
+        model: "llama-3.3-70b-versatile",
+        temperature: 0.7,
+        max_tokens: 4000,
+      });
+
+      const responseText = groqResponse.choices[0]?.message?.content?.trim() || "";
+      const result = extractValidJSON(responseText);
+      return {
+        ...result,
+        instructions: result.instructions
+      };
+    } catch (groqError) {
+      console.error("Groq fallback conversion failed:", groqError);
+      throw groqError;
+    }
+  }
+}
+
+/**
+ * Validate if a user-provided tool is appropriate for the project
+ */
+export async function validateCustomTool(
+  projectName: string,
+  problemAddressed: string,
+  tool: string
+): Promise<{ valid: boolean; reason?: string }> {
+  const systemPrompt = `You are a technical architect. Validate if the provided tool is a valid and professional choice for building the described project.
+If it is valid, return {"valid": true}.
+If it is NOT valid (e.g., totally unrelated, impossible to implement this project with, or just a random word), return {"valid": false, "reason": "A short explanation of why this tool isn't suitable for this specific project"}.
+Return ONLY JSON.`;
+
+  const context = `Project: ${projectName}
+Problem: ${problemAddressed}
+Proposed Tool: ${tool}`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      config: {
+        systemInstruction: systemPrompt,
+        responseMimeType: "application/json",
+      },
+      contents: context,
+    });
+    const rawText = response.text || "{\"valid\": true}";
+    let cleaned = rawText.trim();
+    if (cleaned.startsWith('```json')) {
+      cleaned = cleaned.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    } else if (cleaned.startsWith('```')) {
+      cleaned = cleaned.replace(/^```\n?/, '').replace(/\n?```$/, '');
+    }
+    
+    const firstBrace = cleaned.indexOf('{');
+    const lastBrace = cleaned.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1) {
+      cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+    }
+
+    try {
+      return JSON.parse(cleaned);
+    } catch (e) {
+      return { valid: true };
+    }
+  } catch (error) {
+    return { valid: true };
+  }
+}
+
+export async function generateInlinePrompt(
+  userInput: string,
+  previousPrompts: string[],
+  recentTyping: string,
+): Promise<string> {
+  const maxRetries = 3;
+  const bannedPhrases = [
+    "what do you mean",
+    "define",
+    "what is",
+    "explain what",
+    "meaning of",
+    "what does",
+    "definition",
+  ];
+
+  try {
+    // Try up to maxRetries times to generate a valid prompt
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      // Step 1: Generate prompt based on what user just typed with improved system prompt
+      const initialPromptSystem = `You are an AI learning companion that is Like a "listening parent wantig to hear so much from his child what the cild learnt that day without making the child feel like they are in an examination". Your goal is to encourage the user to share more about what they are learning.
+Instead of acting like an examiner or asking testing questions, reply with warm, supportive prompts that make the user feel heard and motivated to elaborate.
+
+Rules:
+- Use short phrases like: "I'm all ears!", "Tell me more about that.", "That sounds fascinating—keep going!", "I'd love to hear your take on this.", or "Wow, share more!".
+- Stay a supportive listener—never teach, correct, or explain.
+- Never ask clarifying questions like "What do you mean by X?" or "Can you define X?".
+- Never ask testing questions like "What are the three types of X?" or "Give an example of Y.".
+- Keep every response very concise (under 15 words total).
+- Avoid repeating or echoing previous prompts—always build fresh enthusiasm.
+- End every response with an inviting hook to share more.
+- Avoid redundancy with previous questions: ${previousPrompts.join(", ")}
+
+Generate a NEW warm, encouraging prompt that invites the user to continue their explanation based on what they just typed.`;
+
+      const initialCompletion = await groq.chat.completions.create({
+        messages: [
+          {
+            role: "system",
+            content: initialPromptSystem,
+          },
+          {
+            role: "user",
+            content: `What they just typed: "${recentTyping}"\n\nGenerate a brief clarifying question that encourages them to think deeper about the concept.`,
+          },
+        ],
+        model: "llama-3.3-70b-versatile",
+        temperature: 0.6 + attempt * 0.05, // Moderate temperature for consistency
+        max_tokens: 100,
+      });
+
+      const candidatePrompt =
+        initialCompletion.choices[0]?.message?.content?.trim() || "";
+
+      if (!candidatePrompt) {
+        continue; // Try again if no prompt generated
+      }
+
+      // Step 2: Secondary filter - check for banned phrases
+      const lowerCasePrompt = candidatePrompt.toLowerCase();
+      const hasBannedPhrase = bannedPhrases.some((phrase) =>
+        lowerCasePrompt.includes(phrase),
+      );
+
+      if (hasBannedPhrase) {
+        console.log(
+          `Filtered out prompt with banned phrase: ${candidatePrompt}`,
+        );
+        continue; // Skip this prompt and retry
+      }
+
+      // Step 3: Validate the prompt against the full context
+      const validationSystem = `You are a strict validation AI checking if a follow-up prompt is encouraging and "all ears."
+
+Your job:
+1. Ensure the prompt is warm, supportive, and invites more sharing (e.g., "Tell me more," "I'm listening").
+2. Reject prompts that:
+   - Sound like an examiner or teacher
+   - Ask for definitions or literal meanings
+   - Ask "What do you mean?"
+   - Are redundant with previous prompts
+3. Respond with ONLY:
+   - "YES" if the prompt is encouraging and non-examiner-like
+   - "NO" if it sounds like a test or is cold`;
+
+      const validationCompletion = await groq.chat.completions.create({
+        messages: [
+          {
+            role: "system",
+            content: validationSystem,
+          },
+          {
+            role: "user",
+            content: `Complete entry: "${userInput}"
+Recent typing: "${recentTyping}"
+Proposed question: "${candidatePrompt}"
+Previous questions asked: ${previousPrompts.length > 0 ? previousPrompts.join("; ") : "None"}
+
+Is this a good question that encourages deeper understanding? Answer with ONLY YES or NO.`,
+          },
+        ],
+        model: "llama-3.3-70b-versatile",
+        temperature: 0.2, // Low temperature for strict validation
+        max_tokens: 5,
+      });
+
+      const validation =
+        validationCompletion.choices[0]?.message?.content
+          ?.trim()
+          .toUpperCase() || "NO";
+
+      // If validated, return the prompt
+      if (validation === "YES") {
+        console.log(`Valid prompt generated: ${candidatePrompt}`);
+        return candidatePrompt;
+      }
+
+      // If not validated and we have more attempts, continue loop
+      console.log(`Attempt ${attempt + 1} failed validation, retrying...`);
+    }
+
+    // If all retries failed, return empty string (no prompt shown)
+    console.log("All validation attempts failed, no prompt shown");
+    return "";
+  } catch (error) {
+    console.error("Groq API error:", error);
+    return "";
+  }
+}
+
+export async function generateChatResponse(
+  userMessage: string,
+  conversationHistory: { role: string; content: string }[],
+  conceptContext?: string,
+): Promise<string> {
+  const systemPrompt = `You are an educational AI companion.
+Your goal is to be helpful and direct. Focus on answering follow-up questions specifically.
+
+${conceptContext ? `Context about the concept being discussed: ${conceptContext}` : ""}
+
+Guidelines:
+- Answer the user's question directly and immediately.
+- Be concise. Avoid lengthy preambles or repetitive enthusiastic filler.
+- Do not be overly verbal. Provide high-value information without padding.
+- Use natural paragraphs; only use formatting (bullets) if strictly necessary for a list.
+- Maintain a friendly but professional and focused tone.
+- If the user asks a follow-up, prioritize that specific answer over general concept review.`;
+
+  const messages = conversationHistory
+    .map(
+      (msg) => `${msg.role === "user" ? "User" : "Assistant"}: ${msg.content}`,
+    )
+    .join("\n");
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      config: {
+        systemInstruction: systemPrompt,
+        temperature: 0.7,
+      },
+      contents: `${messages}\n\nUser: ${userMessage}\n\nProvide a helpful response:`,
+    });
+
+    return (
+      response.text ||
+      "I apologize, but I'm having trouble responding right now."
+    );
+  } catch (error) {
+    console.error("Gemini chat response failed, falling back to Groq:", error);
+
+    // Fallback to Groq
+    const groqMessages = [
+      ...conversationHistory.map((msg) => ({
+        role: msg.role as "user" | "assistant",
+        content: msg.content,
+      })),
+      {
+        role: "user" as const,
+        content: userMessage,
+      },
+    ];
+
+    const groqResponse = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content: systemPrompt,
+        },
+        ...groqMessages,
+      ],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.7,
+      max_tokens: 1000,
+    });
+
+    return (
+      groqResponse.choices[0]?.message?.content ||
+      "I apologize, but I'm having trouble responding right now."
+    );
+  }
+}
+
+export async function generateTags(
+  conversationContent: string,
+): Promise<string[]> {
+  const systemPrompt = `You are an AI that generates relevant tags for educational conversations.
+Generate 3-5 concise, relevant tags that categorize this conversation.
+
+Tags should be:
+- Single words or short phrases
+- Lowercase
+- Related to topics, concepts, or themes discussed
+- Useful for searching and organizing
+
+Return valid JSON array of strings. Example: ["tag1", "tag2", "tag3"]`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      config: {
+        systemInstruction: systemPrompt,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "array",
+          items: { type: "string" },
+        },
+      },
+      contents: conversationContent,
+    });
+
+    const rawJson = response.text;
+    if (!rawJson) {
+      return ["general"];
+    }
+
+    const tags = JSON.parse(rawJson);
+    return Array.isArray(tags) ? tags : ["general"];
+  } catch (error) {
+    console.error("Gemini tag generation failed, falling back to Groq:", error);
+
+    // Fallback to Groq
+    const groqResponse = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content: systemPrompt + "\n\nReturn ONLY a JSON array, nothing else.",
+        },
+        {
+          role: "user",
+          content: conversationContent,
+        },
+      ],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.5,
+      max_tokens: 200,
+    });
+
+    const responseText =
+      groqResponse.choices[0]?.message?.content?.trim() || "";
+
+    try {
+      const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) {
+        return ["general"];
+      }
+      const tags = JSON.parse(jsonMatch[0]);
+      return Array.isArray(tags) ? tags : ["general"];
+    } catch {
+      return ["general"];
+    }
+  }
+}
+
+export interface ImplementationPreview {
+  projectName: string;
+  type: string;
+  tool: string;
+  language: string;
+  components: string[];
+  learningGoals: string[];
+  problemAddressed: string;
+  whySuggested: string;
+  realWorldContext: string;
+  industry: string;
+  flowDiagram: string;
+}
+
+export async function generateImplementationPreview(
+  concept: any,
+  conversationHistory: { role: string; content: string }[],
+  userConcepts: any[] = [],
+  learnerProfile: string = "",
+): Promise<ImplementationPreview> {
+  const systemPrompt = `You are an educational AI that generates REAL-WORLD project implementation previews personalized to each learner.
+Your mission is to create projects that solve actual problems people face or contribute to solving bigger challenges - NOT textbook exercises.
+
+The preview must include:
+- Project name (descriptive, sounds like a real project)
+- Type (Simulation, Script, Application, Lab, Tool, etc.)
+- Tool/Platform (appropriate for the problem)
+- Programming language
+- Components (3-5 key parts needed to solve this problem)
+- Learning goals (2-3 real outcomes users will achieve)
+- Problem addressed: The specific, concrete problem this solves or contributes to
+- Why suggested: Why this problem matters and connects to what they learned (HIGHLY PERSONALIZED to their specific journey)
+- Real world context: Where/how this problem exists in the real world
+- Industry: Which industry or field uses this
+- Flow Diagram: A valid and complete Mermaid.js flowchart definition starting with 'graph TD'. Use node IDs like A, B, C and labels like A[Label]. Ensure it is syntactically correct and represents the logic flow. CRITICAL: Do NOT use semicolons (;) or braces ({}) at the end of lines. Avoid special characters inside labels.
+
+CRITICAL PERSONALIZATION:
+You have access to the learner's profile. Use it to:
+1. Build on concepts they already mastered (reference their profile strengths)
+2. Fill specific gaps mentioned in their profile
+3. Suggest projects that match their demonstrated learning patterns
+4. Progress them toward their apparent interests based on what they've learned
+
+CRITICAL: Focus on real-world impact:
+- Instead of "Simulate a circuit" → "Design a circuit for an IoT temperature sensor used in smart homes"
+- Instead of "Sort algorithm exercise" → "Build an optimization system to sort delivery routes (reduces fuel costs)"
+- Instead of "Basic data analysis" → "Analyze patient health data to identify early disease patterns (healthcare impact)"
+
+Choose tools based on practical use:
+- Physics/Engineering: MATLAB, Python with NumPy/SciPy
+- Data Science: Python with Pandas/Matplotlib
+- Web: JavaScript/TypeScript
+- General Programming: Python, Java, C++
+
+Return valid JSON.`;
+
+  const learnerProfileContext = learnerProfile
+    ? `\n\nLEARNER PROFILE:\n${learnerProfile}`
+    : "";
+
+  const contextMessage = `Concept: ${concept.title}
+Category: ${concept.category}
+What: ${concept.what}
+Why matters: ${concept.why}
+How: ${concept.how}
+Real-world applications: ${concept.where.join(", ")}
+
+Recent conversation: ${conversationHistory.map((m) => `${m.role}: ${m.content}`).join("\n")}${learnerProfileContext}
+
+Generate an implementation preview that:
+1. Solves a REAL-WORLD problem (not a classroom exercise)
+2. Connects specifically to this learner's profile and demonstrated capabilities
+3. Shows progression in their learning journey
+4. Helps them apply their knowledge to actual problems that matter`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      config: {
+        systemInstruction: systemPrompt,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "object",
+          properties: {
+            projectName: { type: "string" },
+            type: { type: "string" },
+            tool: { type: "string" },
+            language: { type: "string" },
+            components: {
+              type: "array",
+              items: { type: "string" },
+            },
+            learningGoals: {
+              type: "array",
+              items: { type: "string" },
+            },
+            problemAddressed: { type: "string" },
+            whySuggested: { type: "string" },
+            realWorldContext: { type: "string" },
+            industry: { type: "string" },
+            flowDiagram: { type: "string" },
+          },
+          required: [
+            "projectName",
+            "type",
+            "tool",
+            "language",
+            "components",
+            "learningGoals",
+            "problemAddressed",
+            "whySuggested",
+            "realWorldContext",
+            "industry",
+            "flowDiagram",
+          ],
+        },
+      },
+      contents: contextMessage,
+    });
+
+    const rawJson = response.text;
+    if (!rawJson) {
+      throw new Error("Empty response from Gemini");
+    }
+
+    return JSON.parse(rawJson);
+  } catch (error) {
+    console.error(
+      "Gemini implementation preview failed, falling back to Groq:",
+      error,
+    );
+
+    // Fallback to Groq with personalization
+    const groqResponse = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content:
+            systemPrompt +
+            "\n\nReturn ONLY valid JSON, nothing else. Make 'whySuggested' personalized to their specific learning history.",
+        },
+        {
+          role: "user",
+          content: contextMessage,
+        },
+      ],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.7,
+      max_tokens: 2000,
+    });
+
+    const responseText =
+      groqResponse.choices[0]?.message?.content?.trim() || "";
+
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error("Groq fallback failed: Could not parse JSON response");
+    }
+
+    return JSON.parse(jsonMatch[0]);
+  }
+}
+
+export interface FullImplementation {
+  code: string;
+  pseudocode: string;
+  flowDiagram: string;
+  instructions: string;
+}
+
+/**
+ * Use Groq to filter out prerequisites the user already knows from completed projects
+ * Returns only NEW prerequisites the user needs to learn
+ */
+export async function filterOutMasteredPrerequisites(
+  allPrerequisites: string[],
+  masteredPrerequisites: string[],
+): Promise<string[]> {
+  if (masteredPrerequisites.length === 0 || allPrerequisites.length === 0) {
+    return allPrerequisites;
+  }
+
+  try {
+    const filterPrompt = `You are an expert in identifying which prerequisites a student needs to learn.
+
+NEW PREREQUISITES (to potentially suggest):
+${allPrerequisites.map((p, i) => `${i + 1}. ${p}`).join("\n")}
+
+PREREQUISITES USER ALREADY KNOWS (from past completed projects):
+${masteredPrerequisites.map((p, i) => `${i + 1}. ${p}`).join("\n")}
+
+Your task:
+1. Identify which NEW prerequisites are semantically DIFFERENT from the mastered ones
+2. Remove or consolidate duplicates (e.g., "basic Python" is covered if they know "Python fundamentals")
+3. Return ONLY the prerequisites the student still needs to learn
+
+Return ONLY a JSON array of strings with the prerequisite names to suggest. Example: ["React Hooks", "WebSockets"]
+If all new prerequisites are already known, return an empty array: []`;
+
+    const response = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an educational prerequisite analyzer. Return ONLY valid JSON arrays.",
+        },
+        {
+          role: "user",
+          content: filterPrompt,
+        },
+      ],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.3,
+      max_tokens: 500,
+    });
+
+    const responseText = response.choices[0]?.message?.content?.trim() || "[]";
+    const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+
+    if (!jsonMatch) {
+      console.warn("Failed to parse Groq response for prerequisite filtering");
+      return allPrerequisites;
+    }
+
+    const filtered = JSON.parse(jsonMatch[0]);
+    return Array.isArray(filtered) ? filtered : allPrerequisites;
+  } catch (error) {
+    console.error(
+      "Prerequisite filtering failed, returning all prerequisites:",
+      error,
+    );
+    return allPrerequisites;
+  }
+}
+
+/**
+ * Use Groq to intelligently find the best template project for the current context
+ * Analyzes semantic similarity rather than just type/tool/language matching
+ */
+export async function selectBestProjectTemplate(
+  concept: any,
+  preview: any,
+  candidateProjects: any[],
+): Promise<any | null> {
+  console.log("🤖 [GROQ-SELECT] selectBestProjectTemplate() called");
+
+  if (!candidateProjects || candidateProjects.length === 0) {
+    console.log(
+      "🤖 [GROQ-SELECT] No candidate projects available for template selection",
+    );
+    return null;
+  }
+
+  // If only one candidate, use it directly
+  if (candidateProjects.length === 1) {
+    console.log(
+      `🤖 [GROQ-SELECT] ✅ Only one candidate found, using as template: ${candidateProjects[0].projectName}`,
+    );
+    return candidateProjects[0];
+  }
+
+  try {
+    console.log(
+      `🤖 [GROQ-SELECT] Using Groq to select best template from ${candidateProjects.length} candidates...`,
+    );
+    // Build context about the new project
+    const newProjectContext = `
+New Project to Generate:
+- Concept: ${concept.title}
+- Category: ${concept.category}
+- Problem: ${preview.problemAddressed}
+- Why: ${preview.whySuggested}
+- Real-World Context: ${preview.realWorldContext}
+- Type: ${preview.type}
+- Tool: ${preview.tool}
+- Language: ${preview.language}
+- Components: ${preview.components.join(", ")}`;
+
+    // Build context about available templates
+    const candidatesContext = candidateProjects
+      .map(
+        (proj, idx) => `
+Template ${idx + 1}:
+- Name: ${proj.projectName}
+- Type: ${proj.type}
+- Tool: ${proj.tool}
+- Language: ${proj.language}
+- Problem: ${proj.problemAddressed || "N/A"}
+- Context: ${proj.realWorldContext || "N/A"}`,
+      )
+      .join("\n");
+
+    const selectionPrompt = `You are an AI assistant helping select the best template project for code generation.
+
+${newProjectContext}
+
+Available templates to choose from:
+${candidatesContext}
+
+Analyze which template project is MOST semantically similar to the new project in terms of:
+1. Problem-solving approach and context
+2. Tool and language usage
+3. Instructional structure and complexity
+4. Real-world application domain
+
+Return ONLY a JSON response with this exact format:
+{
+  "selectedIndex": <number from 0 to ${candidateProjects.length - 1}>,
+  "reasoning": "<brief explanation of why this template matches best>",
+  "confidence": <number from 0 to 1>
+}`;
+
+    const response = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an expert at finding semantic similarity. Return ONLY valid JSON with no additional text.",
+        },
+        {
+          role: "user",
+          content: selectionPrompt,
+        },
+      ],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.3,
+      max_tokens: 500,
+    });
+
+    const responseText = response.choices[0]?.message?.content?.trim() || "";
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+
+    if (!jsonMatch) {
+      console.warn(
+        "Template selection failed to parse JSON, using first candidate",
+      );
+      return candidateProjects[0];
+    }
+
+    const selection = JSON.parse(jsonMatch[0]);
+    const selectedIdx = Math.max(
+      0,
+      Math.min(selection.selectedIndex, candidateProjects.length - 1),
+    );
+    const selectedProject = candidateProjects[selectedIdx];
+
+    console.log(
+      `🤖 [GROQ-SELECT] ✅ Groq selected template: ${selectedProject.projectName}`,
+    );
+    console.log(`🤖 [GROQ-SELECT]    Confidence: ${selection.confidence}`);
+    console.log(`🤖 [GROQ-SELECT]    Reasoning: ${selection.reasoning}`);
+
+    return selectedProject;
+  } catch (error) {
+    console.error(
+      "🤖 [GROQ-SELECT] ❌ Template selection failed, using first candidate:",
+      error,
+    );
+    return candidateProjects[0];
+  }
+}
+
+/**
+ * Format instructions by removing Markdown syntax and cleaning visual presentation
+ * Uses Groq as the final "editor" to ensure clean, consistent visual output
+ */
+async function formatInstructionsForDisplay(
+  instructions: string,
+): Promise<string> {
+  if (!instructions) return "";
+
+  try {
+    const cleanupPrompt = `You are a final visual editor for educational instructions. Your ONLY job is to:
+1. Preserve Markdown **bold** syntax for key terms, actions, or important emphasizes.
+2. Remove other Markdown syntax (__, *, -, etc. unless they are bullets)
+3. Keep the text clean and natural
+4. Preserve structure using line breaks and indentation
+5. Remove any trailing asterisks or formatting symbols
+6. Ensure numbered lists are clean
+7. Return ONLY the cleaned text with bolding preserved, nothing else
+
+Instructions to clean:
+${instructions}`;
+
+    const response = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a text formatter. Remove all Markdown syntax and return clean, readable text. Return ONLY the formatted text.",
+        },
+        {
+          role: "user",
+          content: cleanupPrompt,
+        },
+      ],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0,
+      max_tokens: 4000,
+    });
+
+    const cleanedText =
+      response.choices[0]?.message?.content?.trim() || instructions;
+    return cleanedText;
+  } catch (error) {
+    console.error("Instruction formatting failed, using original:", error);
+    // Fallback: simple client-side cleanup
+    return instructions
+      .replace(/\*\*/g, "")
+      .replace(/__(.*?)__/g, "$1")
+      .replace(/^\*\s+/gm, "")
+      .trim();
+  }
+}
+
+export async function generateImplementationCode(
+  concept: any,
+  preview: any,
+  chatHistory: any[] = [],
+  generationId?: string,
+  previousProjectContext?: any,
+): Promise<FullImplementation> {
+  const systemPrompt = `You are an educational AI that generates complete, working code implementations.
+Generate production-quality code with detailed comments and instructions.
+
+Include:
+- Complete working code (properly formatted and commented)
+- Detailed pseudocode breakdown
+- Flow diagram description (text representation)
+- Step-by-step usage instructions
+
+Make the code educational - explain WHY things work, not just HOW.`;
+
+  // Build hybrid template context from similar project if available
+  let hybridTemplateContext = "";
+  if (previousProjectContext) {
+    hybridTemplateContext = `\n\nHYBRID APPROACH - Use similar project as structure template:
+Previous similar project: ${previousProjectContext.projectName}
+- Type: ${previousProjectContext.type}
+- Tool: ${previousProjectContext.tool}
+- Language: ${previousProjectContext.language}
+- Structure pattern: Adapt the instruction structure/format from this previous project for consistency
+- Reuse sections: Keep the "BEFORE YOU BEGIN", "QUICK START", dividers (--- Section ---) pattern
+- Adapt content: Remix the instruction approach for THIS project's specific context, don't copy verbatim`;
+  }
+
+  // Build the 5W+H context
+  const fiveWHContext = `
+5W+H Analysis:
+- WHAT: ${concept.what}
+- WHERE: ${concept.where.join(", ")}
+- WHY: ${concept.why}
+- WHO: ${concept.who}
+- WHEN: ${concept.when}
+- HOW: ${concept.how}`;
+
+  // Build chat history context if available
+  let chatContext = "";
+  if (chatHistory && chatHistory.length > 0) {
+    const userQuestions = chatHistory
+      .filter((msg: any) => msg.role === "user")
+      .map((msg: any) => `- ${msg.content}`)
+      .join("\n");
+    chatContext = `\n\nUser's Questions and Requirements:\n${userQuestions}`;
+  }
+
+  // Build project overview context
+  const projectContext = `\nProject Overview:
+- Problem Addressed: ${preview.problemAddressed || "N/A"}
+- Why Suggested: ${preview.whySuggested || "N/A"}
+- Real-World Context: ${preview.realWorldContext || "N/A"}
+- Industry: ${preview.industry || "General"}`;
+
+  const contextMessage = `Concept: ${concept.title}
+Category: ${concept.category}
+${fiveWHContext}
+
+Project: ${preview.projectName}
+Language: ${preview.language}
+Tool: ${preview.tool}
+Components: ${preview.components.join(", ")}
+${projectContext}
+${chatContext}
+${hybridTemplateContext}
+
+Generate complete implementation code, pseudocode, flow diagram, and instructions that address the user's specific context and questions.`;
+
+  try {
+    // Import SSE helpers
+    const { sendStageStart, sendStageComplete, sendProgressDetail, sendError } =
+      generationId
+        ? await import("./sse-generator")
+        : {
+            sendStageStart: () => {},
+            sendStageComplete: () => {},
+            sendProgressDetail: () => {},
+            sendError: () => {},
+          };
+
+    // Stage 1: Gemini analyzes and generates initial structure (with Groq fallback)
+    console.log("Stage 1: Analyzing project structure...");
+    if (generationId)
+      sendStageStart(generationId, 1, "Analyzing project structure");
+    if (generationId)
+      sendProgressDetail(generationId, `Analyzing concept: ${concept.title}`);
+
+    let geminiResult;
+
+    try {
+      console.log("Stage 1: Attempting Gemini API...");
+      const geminiResponse = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        config: {
+          systemInstruction: systemPrompt,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "object",
+            properties: {
+              code: { type: "string" },
+              pseudocode: { type: "string" },
+              flowDiagram: { type: "string" },
+              instructions: { type: "string" },
+            },
+            required: ["code", "pseudocode", "flowDiagram", "instructions"],
+          },
+        },
+        contents: contextMessage,
+      });
+
+      const geminiJson = geminiResponse.text;
+      if (!geminiJson) {
+        throw new Error("Empty response from Gemini");
+      }
+
+      geminiResult = JSON.parse(geminiJson);
+      console.log("✅ Stage 1: Gemini analysis successful");
+      if (generationId)
+        sendProgressDetail(
+          generationId,
+          "Gemini analysis complete - using Gemini results",
+        );
+    } catch (geminiError) {
+      console.error(
+        "❌ Stage 1: Gemini failed, falling back to Groq:",
+        geminiError,
+      );
+      if (generationId)
+        sendProgressDetail(
+          generationId,
+          "Gemini unavailable, using Groq for analysis",
+        );
+
+      // Fallback to Groq for Stage 1
+      const groqStage1Response = await groq.chat.completions.create({
+        messages: [
+          {
+            role: "system",
+            content:
+              systemPrompt +
+              "\n\nReturn ONLY valid JSON with keys: code, pseudocode, flowDiagram, instructions.",
+          },
+          {
+            role: "user",
+            content: contextMessage,
+          },
+        ],
+        model: "llama-3.3-70b-versatile",
+        temperature: 0.7,
+        max_tokens: 4000,
+      });
+
+      const groqText =
+        groqStage1Response.choices[0]?.message?.content?.trim() || "";
+      geminiResult = extractValidJSON(groqText);
+      console.log("✅ Stage 1: Groq fallback successful");
+    }
+
+    if (generationId) sendStageComplete(generationId, 1, "Analysis complete");
+
+    // Stage 2: Gemini enhances each segment for better reliability
+    console.log("Stage 2: Gemini refining and enhancing instructions...");
+    if (generationId)
+      sendStageStart(generationId, 2, "Gemini refining instructions");
+    if (generationId)
+      sendProgressDetail(
+        generationId,
+        "Segmenting and enhancing implementation...",
+      );
+
+    let geminiEnhancedResult = { ...geminiResult }; // Default fallback
+
+    try {
+      // Enhance instructions with Gemini
+      if (geminiResult.instructions) {
+        if (generationId)
+          sendProgressDetail(generationId, "Enhancing instructions segment...");
+        try {
+          const similarProjectContext = previousProjectContext
+            ? `\n\nReference similar project structure (adapt, don't copy):\n${previousProjectContext.instructions ? previousProjectContext.instructions.substring(0, 500) + "..." : "N/A"}`
+            : "";
+
+          const enhancedInstructionsResponse = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            config: {
+              systemInstruction: `You are an expert at creating detailed, step-by-step implementation guides. Enhance the provided instructions with this EXACT structure:
+
+1. START with "BEFORE YOU BEGIN:" followed by a 3-5 line TL;DR summary covering: install dependencies, save files, adjust parameters, run the system.
+
+2. ADD a "QUICK START (Advanced Users):" section with condensed pip/npm/installation commands followed by the main command, ending with "Full detailed guide continues below..."
+
+3. FOR LONGER STEPS (like Step 1): Break them into mini-sections using "--- Section Name ---" dividers (e.g., "--- Install Required Libraries ---", "--- Configure Environment ---")
+
+4. INCLUDE a small code snippet example showing key configuration (e.g., "SELECTED_MATERIAL = 'Titanium'") placed near relevant customization instructions.
+
+5. ADD text-only screenshot placeholders like "(Screenshot placeholder — will be added later)" at key visual points (NO actual images).
+
+6. Preserve all technical accuracy and domain-specific content.
+
+${previousProjectContext ? "7. HYBRID APPROACH: Follow the structural pattern from similar projects but adapt content for this project context." : ""}
+
+Return ONLY valid JSON with key: instructions.`,
+              responseMimeType: "application/json",
+              responseSchema: {
+                type: "object",
+                properties: {
+                  instructions: { type: "string" },
+                },
+                required: ["instructions"],
+              },
+            },
+            contents: `Enhance these instructions with the structure above:${similarProjectContext}\n\nTarget instructions to enhance:\n\n${geminiResult.instructions}`,
+          });
+          const enhancedInstructionsText =
+            enhancedInstructionsResponse.text || "";
+          if (!enhancedInstructionsText)
+            throw new Error("Empty instructions response");
+          const enhancedInstructions = JSON.parse(enhancedInstructionsText);
+          geminiEnhancedResult.instructions =
+            enhancedInstructions.instructions || geminiResult.instructions;
+          console.log(
+            "✅ Stage 2: Instructions enhanced by Gemini with functional structure",
+          );
+        } catch (err) {
+          console.error(
+            "Stage 2: Gemini instructions enhancement failed, keeping original",
+          );
+          geminiEnhancedResult.instructions = geminiResult.instructions;
+        }
+      }
+
+      // Skip pseudocode enhancement - let Stage 4 finalization handle it
+      if (generationId)
+        sendProgressDetail(
+          generationId,
+          "Pseudocode will be optimized in Stage 4...",
+        );
+      console.log(
+        "⊘ Stage 2: Pseudocode enhancement skipped (will be optimized in Stage 4)",
+      );
+      geminiEnhancedResult.pseudocode = geminiResult.pseudocode;
+
+      // Enhance flow diagram with Gemini
+      if (geminiResult.flowDiagram) {
+        if (generationId)
+          sendProgressDetail(generationId, "Enhancing flow diagram segment...");
+        try {
+          const enhancedDiagramResponse = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            config: {
+              systemInstruction: `You are an expert at creating detailed flow diagrams. Enhance the provided flow diagram with more details, decision points, and loops. Return ONLY valid JSON with key: flowDiagram.`,
+              responseMimeType: "application/json",
+              responseSchema: {
+                type: "object",
+                properties: {
+                  flowDiagram: { type: "string" },
+                },
+                required: ["flowDiagram"],
+              },
+            },
+            contents: `Enhance this flow diagram:\n\n${geminiResult.flowDiagram}`,
+          });
+          const enhancedDiagramText = enhancedDiagramResponse.text || "";
+          if (!enhancedDiagramText) throw new Error("Empty diagram response");
+          const enhancedDiagram = JSON.parse(enhancedDiagramText);
+          geminiEnhancedResult.flowDiagram =
+            enhancedDiagram.flowDiagram || geminiResult.flowDiagram;
+          console.log("✅ Stage 2: Flow diagram enhanced by Gemini");
+        } catch (err) {
+          console.error(
+            "Stage 2: Gemini diagram enhancement failed, keeping original",
+          );
+          geminiEnhancedResult.flowDiagram = geminiResult.flowDiagram;
+        }
+      }
+
+      console.log("✅ Stage 2: Gemini enhancement successful");
+      if (generationId)
+        sendProgressDetail(generationId, "All segments enhanced");
+    } catch (error) {
+      console.error(
+        "❌ Stage 2: Overall enhancement failed, falling back to Gemini result:",
+        error,
+      );
+      if (generationId)
+        sendProgressDetail(
+          generationId,
+          "Using Gemini analysis (enhancement unavailable)",
+        );
+      geminiEnhancedResult = geminiResult;
+    }
+
+    if (generationId)
+      sendStageComplete(generationId, 2, "Enhancement complete");
+
+    // Stage 3: Search for learning resources and add them to instructions
+    console.log("Stage 3: Searching for learning resources...");
+    if (generationId)
+      sendStageStart(generationId, 3, "Searching for learning resources");
+    if (generationId)
+      sendProgressDetail(
+        generationId,
+        "Fetching YouTube, Wikipedia, and book resources...",
+      );
+    const resourceQueries = [
+      `${concept.title} tutorial`,
+      `${preview.tool} ${preview.language} guide`,
+      `${concept.category} best practices`,
+    ];
+
+    let resourcesContext = "";
+    try {
+      const { fetchResourcesForPrerequisites } = await import(
+        "./resource-fetcher"
+      );
+      const resourcesMap =
+        await fetchResourcesForPrerequisites(resourceQueries);
+
+      // Flatten the resources object into a single array
+      const allResources: any[] = [];
+      for (const resources of Object.values(resourcesMap)) {
+        allResources.push(...resources);
+      }
+
+      if (allResources && allResources.length > 0) {
+        resourcesContext = `\n\nLearning Resources:\n${allResources
+          .slice(0, 5)
+          .map(
+            (r: any, idx: number) =>
+              `${idx + 1}. [${r.title}](${r.url}) - ${r.source.toUpperCase()}`,
+          )
+          .join("\n")}`;
+      }
+    } catch (error) {
+      console.log("Resource fetching skipped, continuing without resources");
+    }
+    if (generationId) sendStageComplete(generationId, 3, "Resources gathered");
+
+    // Stage 4: Final pass - Gemini optimization with Groq fallback
+    console.log("Stage 4: Finalizing implementation...");
+    if (generationId)
+      sendStageStart(generationId, 4, "Finalizing implementation");
+    if (generationId)
+      sendProgressDetail(
+        generationId,
+        "Optimizing pseudocode and flow diagrams...",
+      );
+
+    let finalResult;
+
+    try {
+      console.log("Stage 4: Attempting Gemini optimization...");
+      const finalPassResponse = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        config: {
+          systemInstruction: `You are finalizing an educational implementation guide. Your job is to polish and enhance the existing content while PRESERVING the functional structure already in place.
+
+CRITICAL: The instructions should RETAIN this structure:
+1. "BEFORE YOU BEGIN:" section with 3-5 line TL;DR summary
+2. "QUICK START (Advanced Users):" section with condensed commands
+3. Mini-dividers (--- Section Name ---) for longer steps
+4. Code snippet examples showing key configuration
+5. Text-only screenshot placeholders like "(Screenshot placeholder — will be added later)"
+
+Review the provided implementation and enhance:
+1. The pseudocode - make it clear, educational, with proper variable names and logic
+2. The flow diagram - ensure it shows all decision points, loops, and alternatives
+3. All components - explain their purpose and how they interact
+4. The instructions - IMPROVE formatting/clarity but PRESERVE the functional structure (don't remove sections, dividers, or placeholders)
+5. Integrate learning resources by referencing them in relevant instruction sections where helpful
+
+Make polishing improvements:
+- Fix any typos or grammar issues in instructions
+- Improve clarity of explanations
+- Add any missing transition phrases between steps
+- Ensure code examples are properly formatted
+- Verify all placeholders are present and clearly marked
+
+The output should be production-ready and fully structured for easy reading and implementation.
+
+Return ONLY valid JSON with keys: code, pseudocode, flowDiagram, instructions. Return nothing else.`,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "object",
+            properties: {
+              code: { type: "string" },
+              pseudocode: { type: "string" },
+              flowDiagram: { type: "string" },
+              instructions: { type: "string" },
+            },
+            required: ["code", "pseudocode", "flowDiagram", "instructions"],
+          },
+        },
+        contents: `Please finalize this implementation:\n\nCode:\n${geminiEnhancedResult.code}\n\nPseudocode:\n${geminiEnhancedResult.pseudocode}\n\nFlow Diagram:\n${geminiEnhancedResult.flowDiagram}\n\nInstructions:\n${geminiEnhancedResult.instructions}${resourcesContext}`,
+      });
+
+      const finalJson = finalPassResponse.text || "";
+      if (!finalJson) {
+        throw new Error("Empty response from Gemini final pass");
+      }
+
+      finalResult = JSON.parse(finalJson);
+      console.log("✅ Stage 4: Gemini optimization successful");
+      if (generationId)
+        sendProgressDetail(generationId, "Gemini finalization complete");
+    } catch (geminiError) {
+      console.error(
+        "❌ Stage 4: Gemini failed, falling back to Groq:",
+        geminiError,
+      );
+      if (generationId)
+        sendProgressDetail(
+          generationId,
+          "Gemini unavailable, using Groq for finalization",
+        );
+
+      // Fallback to Groq for Stage 4
+      const groqStage4Response = await groq.chat.completions.create({
+        messages: [
+          {
+            role: "system",
+            content: `You are finalizing an educational implementation guide. Polish and enhance while PRESERVING the functional structure.
+
+CRITICAL: The instructions must RETAIN this structure:
+1. "BEFORE YOU BEGIN:" section with 3-5 line TL;DR summary
+2. "QUICK START (Advanced Users):" section with condensed commands
+3. Mini-dividers (--- Section Name ---) for longer steps
+4. Code snippet examples showing key configuration
+5. Text-only screenshot placeholders like "(Screenshot placeholder — will be added later)"
+
+Enhance:
+- Pseudocode: clear, educational, proper variable names
+- Flow diagram: all decision points, loops, alternatives shown
+- Components: explained with purpose and interactions
+- Instructions: PRESERVE structure, improve clarity/formatting only
+- Integrate learning resources into relevant instruction sections
+
+Fix grammar, improve transitions, verify all placeholders present.
+Return ONLY valid JSON with keys: code, pseudocode, flowDiagram, instructions.`,
+          },
+          {
+            role: "user",
+            content: `Please finalize this implementation:\n\nCode:\n${geminiEnhancedResult.code}\n\nPseudocode:\n${geminiEnhancedResult.pseudocode}\n\nFlow Diagram:\n${geminiEnhancedResult.flowDiagram}\n\nInstructions:\n${geminiEnhancedResult.instructions}${resourcesContext}`,
+          },
+        ],
+        model: "llama-3.3-70b-versatile",
+        temperature: 0.7,
+        max_tokens: 4000,
+      });
+
+      const groqFinalText =
+        groqStage4Response.choices[0]?.message?.content?.trim() || "";
+      try {
+        finalResult = extractValidJSON(groqFinalText);
+        console.log("✅ Stage 4: Groq fallback successful");
+      } catch (parseError) {
+        console.error(
+          "❌ Stage 4: Failed to parse Groq response, using Stage 2 result:",
+          parseError,
+        );
+        if (generationId)
+          sendProgressDetail(
+            generationId,
+            "Using previous results for finalization",
+          );
+        finalResult = geminiEnhancedResult;
+      }
+    }
+
+    if (generationId)
+      sendProgressDetail(generationId, "Gemini finalization complete");
+
+    // Final step: Format instructions for clean visual display (remove Markdown, clean syntax)
+    console.log("Stage 4.5: Formatting instructions for visual display...");
+    if (generationId)
+      sendProgressDetail(generationId, "Cleaning up visual formatting...");
+    if (finalResult.instructions) {
+      try {
+        finalResult.instructions = await formatInstructionsForDisplay(
+          finalResult.instructions,
+        );
+        console.log("✅ Stage 4.5: Instructions formatting complete");
+      } catch (err) {
+        console.error(
+          "Formatting step failed, using unformatted instructions:",
+          err,
+        );
+      }
+    }
+
+    if (generationId) sendStageComplete(generationId, 4, "Generation complete");
+    return finalResult;
+  } catch (error) {
+    console.error("Implementation generation failed:", error);
+    throw new Error(`Failed to generate implementation: ${error}`);
+  }
+}
+
+export interface TrendContent {
+  title: string;
+  content: string;
+  source: string;
+  relevanceToUser: string;
+  relatedConcepts: string[];
+  category: string;
+}
+
+export async function generateTrendContent(
+  concepts: any[],
+): Promise<TrendContent[]> {
+  const systemPrompt = `You are an AI that generates personalized educational trend articles.
+Based on the user's SPECIFIC learning journey, create engaging content about latest developments that directly connect to what they've learned.
+
+Generate 2-4 trend articles that:
+- Directly connect to specific concepts they've learned
+- Show how recent developments build on their knowledge
+- Identify how each trend relates to THEIR particular learning path
+- Explain what this means for their continued growth
+- Are informative, relevant, and motivating
+- Show industry applications for concepts they understand
+
+PERSONALIZATION: For each trend, specifically mention which concepts they've learned that apply.
+
+Return valid JSON array.`;
+
+  const learningHistory = concepts
+    .map(
+      (c, i) =>
+        `${i + 1}. ${c.title} (${c.category}): They learned about ${c.what.substring(0, 100)}...`,
+    )
+    .join("\n");
+  const categories = Array.from(new Set(concepts.map((c) => c.category)));
+  const primaryCategory = categories[0] || "General";
+
+  const contextMessage = `USER'S LEARNING JOURNEY:
+${learningHistory}
+
+Generate 2-4 trend articles about recent developments across ${categories.join(", ")} that directly connect to THEIR specific learning.
+Explain how each trend relates to concepts they've already learned and where they can apply this knowledge.`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      config: {
+        systemInstruction: systemPrompt,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string" },
+              content: { type: "string" },
+              source: { type: "string" },
+              relevanceToUser: { type: "string" },
+              relatedConcepts: {
+                type: "array",
+                items: { type: "string" },
+              },
+              category: { type: "string" },
+            },
+            required: [
+              "title",
+              "content",
+              "source",
+              "relevanceToUser",
+              "relatedConcepts",
+              "category",
+            ],
+          },
+        },
+      },
+      contents: contextMessage,
+    });
+
+    const rawJson = response.text;
+    if (!rawJson) {
+      throw new Error("Empty response from Gemini");
+    }
+
+    return JSON.parse(rawJson);
+  } catch (error) {
+    console.error("Gemini trend content failed, falling back to Groq:", error);
+
+    // Fallback to Groq
+    const groqResponse = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content:
+            systemPrompt +
+            "\n\nReturn ONLY valid JSON array with 2-4 objects. Each object has keys: title, content, source, relevanceToUser, relatedConcepts, category. Return nothing else.",
+        },
+        {
+          role: "user",
+          content: contextMessage,
+        },
+      ],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.7,
+      max_tokens: 3000,
+    });
+
+    const responseText =
+      groqResponse.choices[0]?.message?.content?.trim() || "";
+
+    const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) {
+      throw new Error("Groq fallback failed: Could not parse JSON response");
+    }
+
+    return JSON.parse(jsonMatch[0]);
+  }
+}
+
+export interface KnowledgeGap {
+  area: string;
+  missingConcepts: string[];
+  suggestedResources: {
+    type: string;
+    description: string;
+  }[];
+  importance: string;
+}
+
+export async function analyzeKnowledgeGaps(
+  concepts: any[],
+): Promise<KnowledgeGap[]> {
+  if (concepts.length === 0) {
+    return [];
+  }
+
+  const systemPrompt = `You are an educational AI that identifies knowledge gaps and learning opportunities based on a user's specific learning journey.
+Analyze the user's concepts and identify areas where deeper understanding would help them solve real-world problems better.
+
+For each gap, provide:
+- Area of knowledge with gaps (based on what they've learned)
+- Specific missing concepts that would help (not generic, but relevant to THEIR path)
+- Suggested learning resources (practical, applicable to their interests)
+- Why this gap matters (explain how it connects to their learning and future projects)
+
+PERSONALIZATION: Focus on gaps that are relevant to THEIR specific learning journey and real-world applications they care about.
+
+Return JSON array of knowledge gaps (2-4 most relevant).`;
+
+  const learningProfile = concepts
+    .map(
+      (c, i) =>
+        `${i + 1}. ${c.title} (${c.category}): ${c.what}\n   Real applications: ${c.where.join(", ")}`,
+    )
+    .join("\n");
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      config: {
+        systemInstruction: systemPrompt,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              area: { type: "string" },
+              missingConcepts: {
+                type: "array",
+                items: { type: "string" },
+              },
+              suggestedResources: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    type: { type: "string" },
+                    description: { type: "string" },
+                  },
+                },
+              },
+              importance: { type: "string" },
+            },
+          },
+        },
+      },
+      contents: `User's learning profile:\n${learningProfile}\n\nIdentify knowledge gaps and learning opportunities.`,
+    });
+
+    const rawJson = response.text;
+    if (!rawJson) {
+      return [];
+    }
+
+    const gaps = JSON.parse(rawJson);
+    return Array.isArray(gaps) ? gaps : [];
+  } catch (error) {
+    console.error(
+      "Gemini knowledge gap analysis failed, falling back to Groq:",
+      error,
+    );
+
+    // Fallback to Groq
+    const groqResponse = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content:
+            systemPrompt +
+            "\n\nReturn ONLY a valid JSON array with objects containing: area, missingConcepts, suggestedResources, importance. Return nothing else.",
+        },
+        {
+          role: "user",
+          content: `User's learning profile:\n${learningProfile}\n\nIdentify knowledge gaps and learning opportunities.`,
+        },
+      ],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.7,
+      max_tokens: 2000,
+    });
+
+    const responseText =
+      groqResponse.choices[0]?.message?.content?.trim() || "";
+
+    try {
+      const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) {
+        return [];
+      }
+      const gaps = JSON.parse(jsonMatch[0]);
+      return Array.isArray(gaps) ? gaps : [];
+    } catch {
+      return [];
+    }
+  }
+}
+
+export interface OpportunityProject {
+  id: string;
+  projectName: string;
+  type: string;
+  difficulty: string;
+  reasons: string[];
+  prerequisites: string[];
+  estimatedTime: string;
+  locationContext?: string;
+  problemType?: string;
+}
+
+export async function generateOpportunityProjects(
+  concepts: any[],
+  userLocation?: string,
+  userGoals?: string[],
+): Promise<OpportunityProject[]> {
+  if (concepts.length === 0) {
+    return [];
+  }
+
+  const systemPrompt = `You are a "Community Solutions Architect". Your goal is to create SIMPLE, meaningful project opportunities that solve everyday real-world problems.
+
+Rules:
+1. SPECIALIZATION: If a user location is provided (${userLocation || "not provided"}), anchor projects in that local context (e.g., "Community Garden in ${userLocation || "Your Neighborhood"}", "Local Business Optimizer").
+2. MEANING: Projects must solve a clear, simple everyday problem using the provided concepts.
+3. PERSONALIZATION: Incorporate the user's career goals (${userGoals?.join(", ") || "none provided"}) and past activities.
+4. SIMPLICITY: Keep the scope small but the impact clear.
+5. OPPORTUNITY: Focus on how "applying what you just learned" creates a better solution for a neighbor, a local shop, or a personal pain point.
+
+For each project:
+- Name and type (descriptive, sounds like real project)
+- Difficulty level (beginner/intermediate/advanced)
+- Reasons why it's perfect for THEM (reference their specific learned concepts and location)
+- Prerequisites needed (what they must learn first)
+- Estimated time to complete
+- problemType: always "everyday"
+- locationContext: The specific local context used
+
+Return JSON array of 3-5 project recommendations.`;
+
+  const learningProfile = concepts
+    .map(
+      (c, i) =>
+        `${i + 1}. ${c.title} (${c.category}): Learned ${c.what.substring(0, 80)}... Applications: ${c.where.slice(0, 2).join(", ")}`,
+    )
+    .join("\n");
+  const categories = Array.from(new Set(concepts.map((c) => c.category)));
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      config: {
+        systemInstruction: systemPrompt,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              projectName: { type: "string" },
+              type: { type: "string" },
+              difficulty: { type: "string" },
+              reasons: {
+                type: "array",
+                items: { type: "string" },
+              },
+              prerequisites: {
+                type: "array",
+                items: { type: "string" },
+              },
+              estimatedTime: { type: "string" },
+              locationContext: { type: "string" },
+              problemType: { type: "string" },
+            },
+            required: ["projectName", "type", "difficulty", "reasons", "prerequisites", "estimatedTime", "locationContext", "problemType"],
+          },
+        },
+      },
+      contents: `USER'S LEARNING JOURNEY:
+${learningProfile}
+
+Main areas: ${categories.join(", ")}
+Location: ${userLocation || "General"}
+Goals: ${userGoals?.join(", ") || "General application"}
+
+Generate personalized project recommendations that build on what they've learned to solve everyday problems.`,
+    });
+
+    const rawJson = response.text;
+    if (!rawJson) {
+      throw new Error("Empty response from Gemini");
+    }
+
+    return JSON.parse(rawJson);
+  } catch (error) {
+    console.error("Opportunity generation failed:", error);
+    return [];
+  }
+}

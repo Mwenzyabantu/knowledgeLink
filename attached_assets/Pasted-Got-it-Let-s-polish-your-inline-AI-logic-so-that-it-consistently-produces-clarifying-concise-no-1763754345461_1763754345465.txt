@@ -1,0 +1,96 @@
+Got it! Let’s polish your inline-AI logic so that it consistently produces **clarifying, concise, non-redundant questions** and avoids asking “What do you mean by X?” which felt vague or frustrating. I’ll break down improvements in **logic, prompt, and filtering** while keeping your original structure.
+
+---
+
+### 1️⃣ Core issues in your current logic
+
+1. **Overly literal questions:**
+
+   * Phrases like “What do you mean by moment?” come from the AI trying to interpret terms literally.
+   * This happens when the AI isn’t instructed to *assume the user knows the terminology* and instead focus on *elaboration*.
+
+2. **Redundancy / repetition:**
+
+   * Even with validation, the AI may recycle old prompts or ask about concepts already clarified.
+
+3. **Prompt rigidity:**
+
+   * “NEVER ask for examples or applications” is good, but we need to **reinforce positive behavior**: ask for deeper understanding of the concept itself.
+
+---
+
+### 2️⃣ Polished system prompt
+
+```javascript
+const initialPromptSystem = `You are an educational AI that helps users elaborate on what they learned.
+Your role is to ask for MORE CLARITY about the concept, NOT examples, applications, or definitions of terms.
+
+Rules:
+- Focus on encouraging deeper explanation of the idea, not literal definitions.
+- Ask questions like:
+    "Can you explain further how that works?"
+    "What are the key aspects of that concept?"
+    "Can you describe it in more detail?"
+- NEVER ask "What do you mean by X?" or prompt the user to define terms.
+- Keep questions concise, conversational, and encouraging.
+- Avoid redundancy with previous questions shown: ${previousPrompts.join(", ")}
+- If this is a retry (attempt > 0), generate a DIFFERENT question than before.
+- Always tailor the question based on the user's recent input, highlighting interesting or complex parts.`;
+```
+
+---
+
+### 3️⃣ Polished validation logic
+
+Add **extra filters** to catch vague or literal-definition questions:
+
+```javascript
+const validationSystem = `You are a validation AI that checks if a follow-up question is useful.
+
+Your job:
+1. Ensure the question encourages deeper explanation of the concept.
+2. Reject questions that:
+   - Ask "What do you mean by X?"
+   - Ask for definitions of terms
+   - Ask for examples, applications, or problem-solving
+   - Are redundant with previous questions
+3. Respond with ONLY:
+   - "YES" if the question is good
+   - "NO" if it fails any rule`;
+```
+
+You could also add a **secondary filter step** in code to detect phrases like `what do you mean`:
+
+```javascript
+const bannedPhrases = ["what do you mean", "define", "explain what X is"];
+if (bannedPhrases.some(phrase => candidatePrompt.toLowerCase().includes(phrase))) {
+    validation = "NO";
+}
+```
+
+---
+
+### 4️⃣ Logic tweaks
+
+* **Tie the question to user input:** highlight words or clauses that are non-trivial rather than just asking about any term.
+* **Use small temperature tweaks**: temperature 0.6–0.7 is good for variety, avoid going too high (0.8+) because it might produce vague literal questions.
+* **Retry logic:** only retry if validation fails, up to N attempts. Each retry can slightly increase temperature for variety.
+
+---
+
+### 5️⃣ Optional: Encourage “self-explanation”
+
+Instead of just asking **clarifying questions**, nudge the AI to frame it as “thinking deeper”:
+
+```text
+"That's interesting — can you describe what makes this part of the concept tricky or important?"
+"Can you elaborate on the steps or relationships involved in this idea?"
+```
+
+This discourages “literal term-checking” questions.
+
+---
+
+If you want, I can **rewrite your full `generateInlinePrompt()` function** with all these improvements implemented so it’s ready to drop in. This will ensure it won’t ask “What do you mean by moment?” or similar again.
+
+Do you want me to do that next?

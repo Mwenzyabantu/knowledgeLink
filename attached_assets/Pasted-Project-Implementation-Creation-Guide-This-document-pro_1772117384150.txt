@@ -1,0 +1,56 @@
+Project Implementation & Creation Guide
+This document provides a comprehensive overview of the project's technical architecture, logic, and implementation details.
+
+1. Project Overview
+The application is a concept-to-implementation learning platform that transforms user-learned concepts into structured data, project opportunities, and production-ready code.
+
+2. Core Pipelines
+A. Concept Extraction (5W+H)
+Purpose: Structure raw user input into a standardized educational format.
+Logic: Uses Gemini 2.5 Flash (with Groq Llama 3.3 70B fallback) to extract:
+What: Core concept explanation.
+Why: Real-world importance and relevance.
+How: Technical mechanism, process, or implementation.
+Where: Specific real-world applications (3-5 concrete examples).
+Who: People or professions who use this.
+When: Historical context or timeline.
+Pseudocode: A high-level algorithmic representation (for technical concepts).
+Files: server/routes.ts (API endpoint /api/ai/generate-5wh), server/ai-service.ts (generate5WH), client/src/components/knowledge-input.tsx.
+B. Opportunity Project Generation
+Purpose: Suggest personalized project ideas based on user history and location.
+Logic: Acts as a "Community Solutions Architect" to bridge the gap between abstract concepts and local community needs. It uses the Learner Profile (generated from concept history) to ensure projects match demonstrated capabilities.
+Trigger: Automatic generation after every 3 concepts (configurable in settings) or manual request.
+Files: server/ai-service.ts (generateOpportunityProjects), server/routes.ts, server/storage.ts.
+C. Implementation Pipeline
+Purpose: Generate full code and instructions for selected projects.
+Real-Time Tracking: Uses Server-Sent Events (SSE) to stream progress updates (Stages 1-4) to the frontend.
+Stages:
+Analysis: Gemini defines the project structure, code, and initial instructions.
+Refinement: Gemini enhances instructions with "BEFORE YOU BEGIN", "QUICK START", and structural dividers (--- Section ---).
+Integration: Uses Groq (selectBestProjectTemplate) to find semantically similar past projects to maintain instructional consistency.
+Finalization: Final code generation and Groq-powered visual editing (formatInstructionsForDisplay) to clean up Markdown and ensure professional presentation.
+Files: server/ai-service.ts (generateImplementationCode), server/sse-generator.ts, client/src/components/generation-status-page.tsx.
+D. Smart Prerequisite Learning
+Purpose: Prevent redundant teaching of already mastered skills.
+Logic: When a project is marked completed, users select mastered prerequisites. Future project generations use Groq (filterOutMasteredPrerequisites) to semantically compare new requirements against the userMasteredPrerequisites table and remove duplicates.
+Files: server/ai-service.ts, server/storage.ts, client/src/pages/implementation-detail.tsx.
+3. Technical Stack
+Frontend: React 18, Vite, TanStack Query v5, Tailwind CSS, Shadcn UI, Wouter, Lucide Icons.
+Backend: Node.js, Express.js.
+AI Models:
+Gemini 2.5 Flash: Primary for heavy lifting (5W+H, code generation).
+Groq Llama 3.3 70B: Fast semantic tasks (Template selection, prerequisite filtering, visual text editing).
+Storage: In-memory MemStorage (with Drizzle-compatible interface for future DB migration).
+Database (Schema): PostgreSQL (Neon) using Drizzle ORM.
+4. Key AI Prompts & Logic (The "Brain")
+Visual Editor: The formatInstructionsForDisplay function in ai-service.ts uses Groq to strip unnecessary Markdown while preserving bolding for key terms.
+Hybrid Approach: The generator adapts structural patterns from previous projects while remixing content for new contexts.
+SSE Helpers: sse-generator.ts manages the connection pool for live progress streaming.
+5. Directory Structure & Files
+server/ai-service.ts: Core AI logic, prompt engineering, and pipeline stages.
+server/routes.ts: API routing, background task orchestration (auto-generation triggers).
+server/storage.ts: IStorage interface and MemStorage implementation for persistence.
+shared/schema.ts: Single source of truth for data models (Concepts, Implementations, Chat, Settings).
+client/src/lib/ai-simulation-service.ts: Client-side logic for generating MATLAB/Python simulation snippets.
+client/src/components/app-sidebar.tsx: Main navigation following Shadcn Sidebar patterns.
+client/src/pages/implementation-preview.tsx: The "personalization" layer showing why a project was suggested.

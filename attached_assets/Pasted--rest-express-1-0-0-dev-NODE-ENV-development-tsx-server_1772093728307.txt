@@ -1,0 +1,30 @@
+> rest-express@1.0.0 dev
+> NODE_ENV=development tsx server/index.ts
+
+🔍 AI Services Validation:
+✓ Gemini API Key: ✅ Configured
+✓ Groq API Key: ✅ Configured
+8:12:51 AM [express] serving on port 5000
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+8:13:01 AM [express] GET /api/user 401 in 3ms :: {"message":"Unauthorized"}
+8:13:01 AM [express] GET /api/personalization 401 in 1ms :: {"message":"Unauthorized"}
+8:13:25 AM [express] POST /api/login 200 in 759ms :: {"id":1,"username":"MWENDA","email":"youngdilie…
+8:13:25 AM [express] GET /api/user 200 in 74ms :: {"id":1,"username":"MWENDA","email":"youngdilien20…
+8:13:25 AM [express] GET /api/trends 200 in 174ms :: []
+8:13:25 AM [express] GET /api/opportunity-projects 200 in 159ms :: []
+8:13:25 AM [express] GET /api/concepts 200 in 195ms :: [{"id":2,"userId":1,"originalInput":" Time sh…
+Looks like things are running much smoother now, but you have a minor Authentication hurdle and that lingering CSS warning.
+1. Initial "Unauthorized" Errors
+At 8:13:01 AM, your /api/user and /api/personalization calls returned 401 Unauthorized.
+Why: Your frontend tried to fetch user data before the session/cookie was established.
+Status: Resolved. The logs show a successful POST /api/login right after, followed by successful 200 OK responses for those same endpoints. This is normal behavior if your app auto-redirects to login.
+2. Persistent PostCSS Warning
+The warning about the from option is still there.
+The Fix: This is usually fixed by updating your PostCSS-related packages. Try running:
+npm install postcss@latest tailwindcss@latest autoprefixer@latest
+Alternative: If you are using vite, ensure your postcss.config.js isn't using a deprecated plugin syntax.
+3. Additional Information
+AI Services: AI services validated successfully at startup.
+API Health: Database queries for trends, concepts, and opportunity-projects return 200 OK. The previous 429 Quota Error is not currently blocking basic data fetching.
+

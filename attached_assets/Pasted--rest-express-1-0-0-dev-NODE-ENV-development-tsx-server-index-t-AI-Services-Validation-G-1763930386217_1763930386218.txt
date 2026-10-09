@@ -1,0 +1,74 @@
+
+> rest-express@1.0.0 dev
+> NODE_ENV=development tsx server/index.t🔍 AI Services Validation:
+✓ Gemini API Key: ✅ Configured
+✓ Groq API Key: ✅ Configured
+8:27:14 PM [express] serving on port 5000
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+8:27:25 PM [express] GET /api/opportunity-projects 304 in 80ms :: [{"id":93,"title":"Drone Flight Tr…
+8:27:25 PM [express] GET /api/concepts 304 in 168ms :: [{"id":100,"originalInput":"Today I learnt ab…
+8:27:35 PM [express] PATCH /api/concepts/100/access 200 in 24ms :: {"id":100,"originalInput":"Today …
+8:27:47 PM [express] POST /api/implementations/48/generate 200 in 154ms :: {"id":48,"generationId":"…
+Stage 1: Analyzing project structure...
+Stage 1: Attempting Gemini API...
+✅ Stage 1: Gemini analysis successful
+Stage 2: Groq refining and enhancing instructions (segmented)...
+✅ Stage 2: Instructions enhanced
+JSON parse error. Attempted to parse: {
+  "pseudocode": "
+  # Define a function to convert degrees to radians
+  FUNCTION degreesToRadians(degrees):
+    # Convert degrees to radians using the formula: radians = degrees * (PI / 180.0)
+    R...
+❌ Stage 2: Pseudocode enhancement failed, keeping original: SyntaxError: Bad control character in string literal in JSON at position 19
+    at JSON.parse (<anonymous>)
+    at extractValidJSON (/home/runner/workspace/server/ai-service.ts:65:17)
+    at generateImplementationCode (/home/runner/workspace/server/ai-service.ts:984:36)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:609:28)
+✅ Stage 2: Flow diagram enhanced
+✅ Stage 2: Groq enhancement successful
+Stage 3: Searching for learning resources...
+Stage 4: Finalizing implementation...
+Stage 4: Attempting Gemini optimization...
+✅ Stage 4: Gemini optimization successful
+8:30:11 PM [express] GET /api/implementations/48/generate-stream/gen_48_1763929667285 200 in 143692ms
+
+> rest-express@1.0.0 dev
+> NODE_ENV=development tsx server/index.ts
+
+🔍 AI Services Validation:
+✓ Gemini API Key: ✅ Configured
+✓ Groq API Key: ✅ Configured
+8:27:14 PM [express] serving on port 5000
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+8:27:25 PM [express] GET /api/opportunity-projects 304 in 80ms :: [{"id":93,"title":"Drone Flight Tr…
+8:27:25 PM [express] GET /api/concepts 304 in 168ms :: [{"id":100,"originalInput":"Today I learnt ab…
+8:27:35 PM [express] PATCH /api/concepts/100/access 200 in 24ms :: {"id":100,"originalInput":"Today …
+8:27:47 PM [express] POST /api/implementations/48/generate 200 in 154ms :: {"id":48,"generationId":"…
+Stage 1: Analyzing project structure...
+Stage 1: Attempting Gemini API...
+✅ Stage 1: Gemini analysis successful
+Stage 2: Groq refining and enhancing instructions (segmented)...
+✅ Stage 2: Instructions enhanced
+JSON parse error. Attempted to parse: {
+  "pseudocode": "
+  # Define a function to convert degrees to radians
+  FUNCTION degreesToRadians(degrees):
+    # Convert degrees to radians using the formula: radians = degrees * (PI / 180.0)
+    R...
+❌ Stage 2: Pseudocode enhancement failed, keeping original: SyntaxError: Bad control character in string literal in JSON at position 19
+    at JSON.parse (<anonymous>)
+    at extractValidJSON (/home/runner/workspace/server/ai-service.ts:65:17)
+    at generateImplementationCode (/home/runner/workspace/server/ai-service.ts:984:36)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:609:28)
+✅ Stage 2: Flow diagram enhanced
+✅ Stage 2: Groq enhancement successful
+Stage 3: Searching for learning resources...
+Stage 4: Finalizing implementation...
+Stage 4: Attempting Gemini optimization...
+✅ Stage 4: Gemini optimization successful
+8:30:11 PM [express] GET /api/implementations/48/generate-stream/gen_48_1763929667285 200 in 143692ms

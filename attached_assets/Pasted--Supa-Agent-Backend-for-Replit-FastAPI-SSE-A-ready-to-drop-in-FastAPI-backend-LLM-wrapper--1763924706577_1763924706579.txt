@@ -1,0 +1,318 @@
+# Supa-Agent Backend for Replit — FastAPI + SSE
+
+*A ready-to-drop-in FastAPI backend, LLM-wrapper + validation, SSE progress stream, caching, and Replit deployment notes for the Supa-Agent pipeline.*
+
+---
+
+## Files included in this document
+
+* `main.py` — FastAPI app with endpoints `/build_plan` and SSE progress stream
+* `llm_client.py` — pluggable async LLM wrapper (supports Gemini/OpenAI styles)
+* `validators.py` — output validators & sanitizers (table, fenced C block, JSON schedule)
+* `requirements.txt` — Python packages for Replit
+* `replit.nix` / `.replit` snippets — minimal Replit configuration guidance
+* `README` — run & debug tips, secrets setup, and troubleshooting
+
+---
+
+## main.py (FastAPI app)
+
+````python
+# main.py
+import os, asyncio, json, uuid, re, time
+from typing import Optional, Dict, Any
+from fastapi import FastAPI, BackgroundTasks, Request, HTTPException
+from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel
+from llm_client import llm_call
+from validators import validate_table, validate_c_block, validate_schedule
+
+app = FastAPI(title="Supa-Agent Backend")
+
+# in-memory cache and SSE queues
+CACHE: Dict[str, Any] = {}
+EVENT_QUEUES: Dict[str, asyncio.Queue] = {}
+
+# Prompts (use your canonical prompts or environment overrides)
+BUILD_TABLE_PROMPT = os.getenv("BUILD_TABLE_PROMPT") or """
+You are a mechatronics engineer.
+Project idea: {idea}
+Create a markdown table with exactly the following columns:
+
+| Step | Action | Rationale |
+
+- 7–10 rows (hardware → firmware)
+- Action ≤ 15 words, Rationale ≤ 25 words
+- first row step = 1, second = 2 …
+Do NOT write anything except the table.
+"""
+
+ALGO_PROMPT = os.getenv("ALGO_PROMPT") or """
+Write a concise C-like pseudocode algorithm for
+“{idea}” that runs inside an STM32 while(1) loop.
+Include: sensing → decision → actuation.
+Output ONLY a fenced code block ```c … ``` and ≤ 40 lines.
+"""
+
+SCHED_PROMPT = os.getenv("SCHED_PROMPT") or """
+Convert the Action items from the table above into a 10-day sprint plan.
+Output JSON: [{"day":1,"goal":"xxx","tasks":["t1","t2"]}, …]
+"""
+
+# Request model
+class BuildRequest(BaseModel):
+    idea: str
+    request_id: Optional[str] = None
+
+# helper to push SSE events
+async def push_event(req_id: str, event: str, payload: dict):
+    q = EVENT_QUEUES.get(req_id)
+    if not q:
+        return
+    await q.put(json.dumps({"event": event, "payload": payload}))
+
+@app.post('/build_plan')
+async def build_plan(req: BuildRequest, background_tasks: BackgroundTasks):
+    idea = req.idea.strip()
+    if not idea:
+        raise HTTPException(status_code=400, detail='idea required')
+
+    # id and cache handling
+    rid = req.request_id or str(uuid.uuid4())
+    cache_key = f'supa:{idea.lower()}'
+    if cache_key in CACHE:
+        return JSONResponse(CACHE[cache_key])
+
+    # create an event queue
+    EVENT_QUEUES[rid] = asyncio.Queue()
+
+    # schedule background worker
+    background_tasks.add_task(worker_pipeline, rid, idea, cache_key)
+
+    return JSONResponse({"request_id": rid, "status": "started"})
+
+@app.get('/events/{request_id}')
+async def events(request_id: str):
+    if request_id not in EVENT_QUEUES:
+        raise HTTPException(status_code=404, detail='no such request')
+    q = EVENT_QUEUES[request_id]
+
+    async def event_stream():
+        try:
+            while True:
+                item = await q.get()
+                yield f"data: {item}\n\n"
+        finally:
+            # cleanup
+            EVENT_QUEUES.pop(request_id, None)
+
+    return StreamingResponse(event_stream(), media_type='text/event-stream')
+
+# The worker does the 3-stage LLM calls, validation, caching, and pushes progress
+async def worker_pipeline(request_id: str, idea: str, cache_key: str):
+    try:
+        await push_event(request_id, 'status', {'msg': 'starting pipeline'})
+
+        # Stage 1: Table
+        await push_event(request_id, 'stage', {'stage': 1, 'msg': 'building table'})
+        table_text = await llm_call(BUILD_TABLE_PROMPT.format(idea=idea))
+        table_text = table_text.strip()
+        ok, table_sanitized = validate_table(table_text)
+        if not ok:
+            await push_event(request_id, 'error', {'stage': 1, 'msg': 'table validation failed'})
+            CACHE[cache_key] = {'error': 'table validation failed'}
+            return
+        await push_event(request_id, 'stage_done', {'stage': 1})
+
+        # Stage 2: Algorithm
+        await push_event(request_id, 'stage', {'stage': 2, 'msg': 'generating algorithm'})
+        algo_text = await llm_call(ALGO_PROMPT.format(idea=idea))
+        algo_text = algo_text.strip()
+        ok, algo_sanitized = validate_c_block(algo_text)
+        if not ok:
+            await push_event(request_id, 'error', {'stage': 2, 'msg': 'algorithm validation failed'})
+            CACHE[cache_key] = {'error': 'algorithm validation failed'}
+            return
+        await push_event(request_id, 'stage_done', {'stage': 2})
+
+        # Stage 3: Schedule
+        await push_event(request_id, 'stage', {'stage': 3, 'msg': 'creating schedule'})
+        sched_text = await llm_call(SCHED_PROMPT.format(idea=idea))
+        sched_text = sched_text.strip()
+        ok, schedule_obj = validate_schedule(sched_text)
+        if not ok:
+            await push_event(request_id, 'error', {'stage': 3, 'msg': 'schedule validation failed'})
+            CACHE[cache_key] = {'error': 'schedule validation failed'}
+            return
+        await push_event(request_id, 'stage_done', {'stage': 3})
+
+        # Compose markdown
+        markdown = f"# Build Plan – {idea}\n\n## How to Build the Project\n{table_sanitized}\n\n## Core Algorithm\n{algo_sanitized}\n\n## Sprint Schedule\n{json.dumps(schedule_obj, indent=2)}\n"
+
+        out = {"idea": idea, "markdown": markdown, "schedule": schedule_obj, "algorithm": algo_sanitized}
+        CACHE[cache_key] = out
+        await push_event(request_id, 'completed', {'msg': 'pipeline complete'})
+    except Exception as e:
+        await push_event(request_id, 'error', {'msg': str(e)})
+        CACHE[cache_key] = {'error': str(e)}
+    finally:
+        # keep results in cache for short time; cleanup queue later
+        await asyncio.sleep(1)
+
+````
+
+---
+
+## llm_client.py (async pluggable LLM wrapper)
+
+```python
+# llm_client.py
+import os, asyncio, httpx
+GEMINI_KEY = os.getenv('GEMINI_KEY')
+OPENAI_KEY = os.getenv('OPENAI_KEY')
+TIMEOUT = float(os.getenv('LLM_TIMEOUT', '25'))
+
+async def llm_call(prompt: str, retries: int = 2) -> str:
+    # Try Gemini-style endpoint first if key present, else OpenAI completion
+    last_err = None
+    for attempt in range(retries+1):
+        try:
+            if GEMINI_KEY:
+                # Example Gemini REST (adjust per your provider)
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_KEY}"
+                payload = {
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {"temperature": 0.25, "maxOutputTokens": 1200}
+                }
+                async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+                    r = await client.post(url, json=payload)
+                    r.raise_for_status()
+                    j = r.json()
+                    return j['candidates'][0]['content']['parts'][0]['text']
+            elif OPENAI_KEY:
+                url = 'https://api.openai.com/v1/chat/completions'
+                headers = {'Authorization': f'Bearer {OPENAI_KEY}'}
+                data = {
+                    'model': 'gpt-4o-mini',
+                    'messages': [{'role': 'user', 'content': prompt}],
+                    'temperature': 0.25,
+                    'max_tokens': 1200
+                }
+                async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+                    r = await client.post(url, headers=headers, json=data)
+                    r.raise_for_status()
+                    j = r.json()
+                    return j['choices'][0]['message']['content']
+            else:
+                raise RuntimeError('No LLM key configured')
+        except Exception as e:
+            last_err = e
+            await asyncio.sleep(1 + attempt*2)
+    raise last_err
+```
+
+---
+
+## validators.py (sanitizers & validators)
+
+````python
+# validators.py
+import re, json
+
+TABLE_RE = re.compile(r"^\|\s*Step\s*\|\s*Action\s*\|\s*Rationale\s*\|", re.I | re.M)
+C_BLOCK_RE = re.compile(r"```c\n([\s\S]{1,2000}?)\n```", re.I)
+
+
+def validate_table(text: str):
+    # ensure table header exists and 7-10 rows
+    if not TABLE_RE.search(text):
+        return False, None
+    # count rows (lines starting with | and having 3 cols)
+    rows = [l for l in text.splitlines() if l.strip().startswith('|')]
+    if len(rows) < 8 or len(rows) > 12:  # header + 7-10 rows
+        return False, None
+    # basic sanitization: remove extra paragraphs
+    # return the table substring
+    start = text.find('|')
+    return True, '\n'.join(rows)
+
+
+def validate_c_block(text: str):
+    m = C_BLOCK_RE.search(text)
+    if not m:
+        return False, None
+    code = m.group(0)
+    # count lines
+    lines = code.count('\n')
+    if lines > 50:
+        return False, None
+    return True, code
+
+
+def validate_schedule(text: str):
+    # attempt to extract JSON from text
+    try:
+        # sometimes the LLM returns markdown around JSON; find first '['
+        idx = text.find('[')
+        if idx == -1:
+            return False, None
+        js = text[idx:]
+        obj = json.loads(js)
+        # basic shape check
+        if not isinstance(obj, list):
+            return False, None
+        return True, obj
+    except Exception:
+        return False, None
+````
+
+---
+
+## requirements.txt
+
+```
+fastapi
+uvicorn[standard]
+httpx
+pydantic
+```
+
+---
+
+## Replit notes / .replit
+
+* Set secrets in Replit (GEMINI_KEY or OPENAI_KEY) via the Secrets UI. Do NOT commit keys.
+* Replit has memory and CPU limits: set `LLM_TIMEOUT` to a safe short value (20–30s).
+* Use `uvicorn main:app --host 0.0.0.0 --port 3000` to run.
+
+Example `.replit`:
+
+```
+run = "python -m uvicorn main:app --host 0.0.0.0 --port 3000"
+```
+
+---
+
+## README — run & debug tips
+
+1. Add your keys in Replit secrets: `GEMINI_KEY` or `OPENAI_KEY`.
+2. Start the server and open logs.
+3. Test `POST /build_plan` with `{"idea":"Adaptive USB-C Power Delivery Module"}`.
+4. Open `GET /events/{request_id}` as an EventSource in your frontend to show progress.
+
+**Common failure modes & fixes**
+
+* `no LLM key configured`: add a key to Replit secrets.
+* `table validation failed`: increase LLM max tokens or relax prompt constraints slightly.
+* Timeouts: increase `LLM_TIMEOUT` but watch Replit limits.
+
+---
+
+## Next steps (I can add any of these into the canvas doc):
+
+* Frontend example: simple HTML + JS that subscribes to SSE and posts build requests.
+* Add persistent cache (Redis) instead of in-memory cache for larger deployments.
+* Add usage metrics & rate-limiting to control costs.
+* Harden validators: more strict markdown-to-struct parsing and auto-repair heuristics.
+
+If you want, I'll now add the frontend example and the debug scripts into this document.

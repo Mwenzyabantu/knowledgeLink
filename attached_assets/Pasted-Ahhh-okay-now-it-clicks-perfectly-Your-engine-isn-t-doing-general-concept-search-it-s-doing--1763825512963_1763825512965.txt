@@ -1,0 +1,179 @@
+Ahhh okay, now it clicks perfectly.
+Your engine isn’t doing *general concept search* — it’s doing **prerequisite fulfillment**.
+
+Meaning:
+
+**Project → Required prerequisites → (Your system) finds resources to help user learn those prerequisites.**
+
+You don’t want the AI guessing what to search.
+You already have the prerequisite list.
+
+Your job is:
+
+✔ Take each prerequisite
+✔ Fetch real learning resources that teach it
+✔ Score them
+✔ Deliver the best ones
+✔ Mark the user as “ready” when they’ve learned enough
+
+NOW the design becomes much cleaner, simpler, and smarter.
+
+---
+
+# 🧠 **THE REAL LOGIC YOU NEED (Based on your clarification)**
+
+## **1. Your app generates prerequisites (already done)**
+
+Example:
+
+```
+["Gear ratios", "Mechanical advantage", "Torque-speed relationship", "Gear efficiency"]
+```
+
+These are direct inputs — no AI guessing.
+
+---
+
+## **2. For each prerequisite → search APIs**
+
+Use:
+
+* **YouTube Data API**
+* **Wikipedia**
+* **DuckDuckGo Instant Answers**
+* **OpenLibrary**
+* Optional: ArXiv for technical topics
+
+Each prerequisite becomes a `"query"`.
+
+Example:
+
+```
+prerequisite: "mechanical advantage"
+```
+
+Search:
+
+* videos teaching mechanical advantage
+* Wikipedia article
+* links from DDG
+* textbooks from OpenLibrary
+
+---
+
+## **3. AI doesn’t search — AI **only scores**
+
+This is extremely important.
+
+Your AI (Groq → Gemini fallback) should *never invent or search*.
+It should only:
+
+* analyze the resources
+* measure how well they teach the prerequisite
+* score them
+* pick the top ones
+
+Think of it like:
+
+**APIs = real data**
+**AI = brain that ranks the real data**
+
+---
+
+## **4. Return structured resources per prerequisite**
+
+Example response:
+
+```json
+[
+  {
+    "prerequisite": "mechanical advantage",
+    "resources": [
+      {
+        "title": "Mechanical Advantage Explained",
+        "type": "video",
+        "url": "...",
+        "relevanceScore": 0.93,
+        "summary": "Clear visual breakdown of torque and force ratio."
+      },
+      {
+        "title": "Wikipedia: Mechanical Advantage",
+        "type": "article",
+        "url": "...",
+        "relevanceScore": 0.82
+      }
+    ]
+  }
+]
+```
+
+---
+
+# 🔥 **THE NEW SYSTEM PROMPT (Updated to fit your real logic)**
+
+Use this inside your AI scoring function:
+
+```
+You are the scoring engine for a prerequisite learning system.
+
+You will receive:
+1. A specific prerequisite the user must learn.
+2. A list of real resources fetched from public APIs.
+
+Your job:
+- DO NOT search the internet.
+- DO NOT invent new resources.
+- DO NOT ask for more context.
+
+You must score how helpful each resource is for learning the prerequisite.
+Base your scoring on:
+- conceptual clarity
+- relevance to the prerequisite
+- beginner-friendliness
+- coverage of fundamental theory
+- accuracy
+
+Score from 0 to 1.
+Provide a one-sentence reason for each score.
+
+Only return the same resources but with:
+{
+  title,
+  url,
+  type,
+  relevanceScore,
+  reason
+}
+
+Never return anything not in the original list.
+Never infer new resources.
+Never hallucinate.
+```
+
+This prompt makes it impossible for the AI to:
+
+* hallucinate books
+* invent YouTube videos
+* give fake links
+* invent “concepts”
+* redefine prerequisites
+
+It stays strictly inside your logic.
+
+---
+
+# 🎯 **Does this match exactly how your Readiness Assessment works?**
+
+If yes, I can now:
+
+### ✔ Build the full backend code
+
+### ✔ Build your resource-scoring AI wrapper
+
+### ✔ Build the `/api/resources?prerequisites=` endpoint
+
+### ✔ Build your data model
+
+### ✔ Provide full implementation for Replit
+
+Just say **“yes build the final code”** and we go full throttle.

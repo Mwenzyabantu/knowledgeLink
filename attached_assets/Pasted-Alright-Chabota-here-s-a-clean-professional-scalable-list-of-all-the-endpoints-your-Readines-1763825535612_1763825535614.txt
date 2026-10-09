@@ -1,0 +1,218 @@
+Alright Chabota — here’s a clean, professional, scalable list of **all the endpoints** your Readiness + Resource engine should expose.
+
+This is based on everything you clarified:
+
+* Projects → require prerequisites
+* Each prerequisite → needs learning resources
+* Resources → are searched via APIs (not AI)
+* AI → ranks resources
+* User → completes prerequisites & becomes “ready”
+
+So the endpoints follow that lifecycle.
+
+---
+
+# 🚀 **FINAL ENDPOINT LIST (Full Ecosystem)**
+
+Super clear. Super logical. Easy to implement.
+
+---
+
+# 🟦 **1. PROJECT → PREREQUISITES PIPELINE**
+
+### **GET `/api/projects/:projectId/prerequisites`**
+
+Returns the list of prerequisites generated for a project.
+
+```json
+{
+  "projectId": "p123",
+  "prerequisites": [
+    "Gear ratios",
+    "Mechanical advantage",
+    "Torque-speed relationship"
+  ]
+}
+```
+
+---
+
+# 🟩 **2. SEARCH RESOURCES FOR A PREREQUISITE**
+
+### **GET `/api/resources?prerequisite=...`**
+
+Fetches real resources (from YouTube/Wikipedia/DDG/OpenLibrary) and returns them **ranked** by AI.
+
+Example:
+
+```
+/api/resources?prerequisite=mechanical+advantage
+```
+
+Response:
+
+```json
+{
+  "prerequisite": "Mechanical advantage",
+  "resources": [
+    {
+      "title": "...",
+      "url": "...",
+      "type": "video",
+      "relevanceScore": 0.91,
+      "reason": "Explains torque-force ratio clearly"
+    },
+    ...
+  ]
+}
+```
+
+---
+
+# 🟨 **3. BULK RESOURCE SEARCH (For multiple prerequisites)**
+
+You’ll need this because projects usually have 3–8 prerequisites.
+
+### **POST `/api/resources/bulk`**
+
+**Body:**
+
+```json
+{
+  "prerequisites": [
+    "gear ratios",
+    "mechanical advantage",
+    "efficiency in gear trains"
+  ]
+}
+```
+
+**Response:**
+
+```json
+[
+  {
+    "prerequisite": "gear ratios",
+    "resources": [...]
+  },
+  {
+    "prerequisite": "mechanical advantage",
+    "resources": [...]
+  }
+]
+```
+
+---
+
+# 🟧 **4. USER PROGRESS — CHECKED OFF PREREQUISITES**
+
+### **POST `/api/users/:userId/progress/prerequisites/complete`**
+
+Marks a prerequisite as “completed.”
+
+**Body:**
+
+```json
+{
+  "projectId": "p123",
+  "prerequisite": "Mechanical advantage"
+}
+```
+
+---
+
+# 🟫 **5. GET USER'S LEARNING PROGRESS**
+
+### **GET `/api/users/:userId/progress?projectId=...`**
+
+Returns which prerequisites are done and which remain.
+
+---
+
+# 🟪 **6. READINESS STATUS**
+
+### **GET `/api/readiness?userId=...&projectId=...`**
+
+Returns:
+
+```json
+{
+  "projectId": "p123",
+  "userId": "u456",
+  "completed": ["gear ratios"],
+  "remaining": ["mechanical advantage", "efficiency"],
+  "isReady": false
+}
+```
+
+---
+
+# 🟫 OPTIONAL (But powerful)
+
+# 🟦 **7. RESOURCE DETAILS**
+
+### **GET `/api/resources/details?url=...`**
+
+Fetch metadata + transcript (for videos) + extract summary.
+
+---
+
+# 🟩 **8. PREREQUISITE DIAGNOSTICS / AI ENHANCEMENT**
+
+Useful if your prerequisite generator is AI-driven.
+
+### **POST `/api/prerequisites/refine`**
+
+Send raw project description → get refined prerequisites.
+
+---
+
+# 🟧 **9. RESOURCE FEEDBACK**
+
+### **POST `/api/resources/feedback`**
+
+Lets users rate how helpful a resource was.
+
+---
+
+# 🟨 **10. INTERNAL DEBUGGING**
+
+### **GET `/api/debug/resources/raw?prerequisite=...`**
+
+Returns the raw fetched API data BEFORE AI ranking.
+
+Useful for dev.
+
+---
+
+# 🎉 **SUMMARY TABLE (Quick View)**
+
+| Endpoint                                         | Purpose                                         |
+| ------------------------------------------------ | ----------------------------------------------- |
+| `/api/projects/:id/prerequisites`                | Get prerequisites                               |
+| `/api/resources`                                 | Get ranked resources for 1 prerequisite         |
+| `/api/resources/bulk`                            | Get ranked resources for multiple prerequisites |
+| `/api/users/:id/progress/prerequisites/complete` | Mark prereq as done                             |
+| `/api/users/:id/progress`                        | Get user progress                               |
+| `/api/readiness`                                 | Check if user is ready                          |
+| `/api/resources/details`                         | Get deep metadata about a resource              |
+| `/api/prerequisites/refine`                      | AI to clean/improve prerequisites               |
+| `/api/resources/feedback`                        | User rates quality                              |
+| `/api/debug/resources/raw`                       | View raw API results (dev only)                 |
+
+---
+
+# 🔥 Want me to generate the **folder structure + full backend implementation** next?
+
+I can give you:
+
+* all endpoints coded
+* resource search engine
+* AI scoring engine
+* database models
+* TypeScript interfaces
+* middleware
+* error handling
+
+Just say:
+**“yes, generate the full backend code”**

@@ -1,0 +1,138 @@
+Here is the complete code for the sidebar, authentication functionality (Login, Signup, Logout), and the backend setup. This covers everything you need to recreate this system in another application.
+
+1. Backend: Authentication Routes & Setup (server/auth/auth.ts)
+This file handles the logic for logging in, signing up, and logging out using Passport.js and Express.
+
+import passport from "passport";
+import { Strategy as LocalStrategy } from "passport-local";
+import { Express } from "express";
+import session from "express-session";
+import connectPg from "connect-pg-simple";
+import bcrypt from "bcryptjs";
+import { storage } from "../storage";
+export async function setupAuth(app: Express) {
+  const PostgresStore = connectPg(session);
+  const sessionStore = new PostgresStore({
+    conString: process.env.DATABASE_URL,
+    createTableIfMissing: true,
+    tableName: "sessions",
+  });
+  app.use(
+    session({
+      secret: process.env.SESSION_SECRET || "default_secret",
+      resave: false,
+      saveUninitialized: false,
+      store: sessionStore,
+      cookie: {
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
+        secure: app.get("env") === "production",
+      },
+    })
+  );
+  app.use(passport.initialize());
+  app.use(passport.session());
+  passport.use(
+    new LocalStrategy({ usernameField: "email" }, async (email, password, done) => {
+      try {
+        const users = await storage.getUsersByEmail(email);
+        const user = users[0];
+        if (!user || !(await bcrypt.compare(password, user.password))) {
+          return done(null, false, { message: "Invalid email or password" });
+        }
+        return done(null, user);
+      } catch (err) {
+        return done(err);
+      }
+    })
+  );
+  passport.serializeUser((user: any, done) => done(null, user.id));
+  passport.deserializeUser(async (id: any, done) => {
+    try {
+      const user = await storage.getUser(id);
+      done(null, user);
+    } catch (err) {
+      done(err);
+    }
+  });
+  app.post("/api/login", (req, res, next) => {
+    passport.authenticate("local", (err, user, info) => {
+      if (err) return next(err);
+      if (!user) return res.status(401).json({ message: info?.message || "Login failed" });
+      req.logIn(user, (err) => {
+        if (err) return next(err);
+        res.json(user);
+      });
+    })(req, res, next);
+  });
+  app.post("/api/logout", (req, res, next) => {
+    req.logout((err) => {
+      if (err) return next(err);
+      res.sendStatus(200);
+    });
+  });
+}
+2. Frontend: Authentication Hook (client/src/hooks/use-auth.tsx)
+This React hook manages the user state and provides login, signup, and logout functions using TanStack Query.
+
+import { createContext, ReactNode, useContext } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
+  const { data: user, isLoading } = useQuery({
+    queryKey: ["/api/auth/user"],
+    queryFn: async () => {
+      const res = await fetch("/api/auth/user");
+      if (res.status === 401) return null;
+      return res.json();
+    },
+  });
+  const logoutMutation = useMutation({
+    mutationFn: async () => {
+      await fetch("/api/logout", { method: "POST" });
+    },
+    onSuccess: () => {
+      queryClient.setQueryData(["/api/auth/user"], null);
+    },
+  });
+  return (
+    <AuthContext.Provider value={{ user, isLoading, logout: logoutMutation.mutate }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+3. Frontend: Sidebar with Logout Button (client/src/components/app-sidebar.tsx)
+The UI for the sidebar, including navigation links and the logout action.
+
+import { LogOut, Home, Settings } from "lucide-react";
+import { Sidebar, SidebarContent, SidebarFooter, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
+import { useAuth } from "@/hooks/use-auth";
+import { Button } from "@/components/ui/button";
+export function AppSidebar() {
+  const { logout } = useAuth();
+  return (
+    <Sidebar variant="sidebar" collapsible="icon">
+      <SidebarContent>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild>
+              <a href="/"><Home className="h-4 w-4" /><span>Dashboard</span></a>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarContent>
+      <SidebarFooter className="p-4 border-t">
+        <Button 
+          variant="ghost" 
+          className="w-full justify-start gap-3 hover:text-destructive" 
+          onClick={() => logout()}
+        >
+          <LogOut className="h-4 w-4" />
+          <span>Log Out</span>
+        </Button>
+      </SidebarFooter>
+    </Sidebar>
+  );
+}
+Summary of Requirements:
+Backend: Express, Passport.js, express-session, and a database (like PostgreSQL with Drizzle).
+Frontend: Re...

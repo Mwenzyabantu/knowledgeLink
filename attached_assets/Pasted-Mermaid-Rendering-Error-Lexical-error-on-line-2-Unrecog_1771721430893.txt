@@ -1,0 +1,57 @@
+Mermaid Rendering Error:
+
+Lexical error on line 2. Unrecognized text.
+...aph TD___mermaid["```mermaid"]graph TD
+----------------------^
+Raw Diagram Content:
+
+```mermaid
+graph TD
+    A[Start Application] --> B{Initialize AVRPS System};
+    B --> C[Add Beacon Positions];
+    C --> D{Call calculate_vehicle_position()};
+
+    D --> D1{Enough Beacons (>=3)?};
+    D1 -- No --> E_calc[Print Error: "Not enough beacons"];
+    D1 -- Yes --> F{Calculate Angles and Magnitudes for Beacons};
+
+    F --> G{Apply Sine Rule Check};
+    G -- Does Not Apply --> E_sine[Print Error: "Sine Rule does not apply"];
+    G -- Applies --> H{Apply Cosine Rule (Iterate Beacon Combinations)};
+
+    H --> H1{Check Denominator (Term) for Cosine Rule};
+    H1 -- Near Zero --> H2[Skip Combination];
+    H1 -- OK --> H3{Calculate Cosine Argument and Angle};
+
+    H3 --> H4{Is Angle NaN?};
+    H4 -- Yes --> H2;
+    H4 -- No --> H5{Does Calculated Angle Match a Beacon Angle?};
+
+    H5 -- No --> H2;
+    H5 -- Yes --> H6[Calculate Vehicle Position: Vector Sum of Beacons];
+    H6 --> I[Set vehicle_position and Exit calculate_vehicle_position];
+
+    H -- All Combinations Checked, No Match --> E_cosine[Print Warning: "Vehicle position could not be determined"];
+
+    I --> J{Call visualize_position()};
+    E_calc --> K{Visualization Step};
+    E_sine --> K{Visualization Step};
+    E_cosine --> K{Visualization Step};
+
+    J --> J1{Vehicle Position Calculated?};
+    J1 -- No --> L_viz[Print Error: "Vehicle position not calculated"];
+    J1 -- Yes --> M{Open vehicle_position.svg};
+
+    M -- Failure --> L_viz_file[Print Error: "Could not create SVG file"];
+    M -- Success --> N[Write SVG Header, Background, Axes, Grid];
+    N --> O[Draw Beacon Positions and Labels in SVG];
+    O --> P[Draw Vehicle Position and Label in SVG (if present)];
+    P --> Q[Write SVG Title, Axis Labels, and Footer];
+    Q --> R[Close vehicle_position.svg];
+    R --> S[Print "Plot saved to vehicle_position.svg"];
+    S --> T[End Application];
+    L_viz --> T;
+    L_viz_file --> T;
+
+    K --> J1;
+```

@@ -1,0 +1,61 @@
+rest-express@1.0.0 dev
+> NODE_ENV=development tsx server/index.ts
+
+🔍 AI Services Validation:
+✓ Gemini API Key: ✅ Configured
+✓ Groq API Key: ✅ Configured
+9:41:27 PM [express] serving on port 5000
+
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+9:41:35 PM [express] GET /api/user 401 in 3ms :: {"message":"Unauthorized"}
+9:41:35 PM [express] GET /api/personalization 401 in 0ms :: {"message":"Unauthorized"}
+9:41:38 PM [express] GET /api/user 401 in 0ms :: {"message":"Unauthorized"}
+9:41:38 PM [express] GET /api/personalization 401 in 0ms :: {"message":"Unauthorized"}
+9:41:47 PM [express] GET /api/personalization 401 in 1ms :: {"message":"Unauthorized"}
+9:41:47 PM [express] GET /api/user 401 in 1ms :: {"message":"Unauthorized"}
+9:43:06 PM [express] POST /api/login 200 in 247ms :: {"id":"a2b1ac72-599d-41f4-814a-66cbe8b8482a","u…
+9:43:07 PM [express] GET /api/trends 401 in 47ms :: {"message":"Unauthorized"}
+9:43:07 PM [express] GET /api/concepts 401 in 143ms :: {"message":"Unauthorized"}
+9:43:07 PM [express] GET /api/opportunity-projects 401 in 47ms :: {"message":"Unauthorized"}
+Gemini quota exceeded (429), immediately falling back to Groq
+9:43:30 PM [express] POST /api/ai/generate-5wh 200 in 1660ms :: {"title":"Surface Plain Bearings","c…
+Valid prompt generated: How did calculating those factors impact your design choices?
+9:43:30 PM [express] POST /api/ai/inline-prompt 200 in 635ms :: {"prompt":"How did calculating those…
+9:43:30 PM [express] POST /api/concepts 401 in 44ms :: {"message":"Unauthorized"}
+The core issue is a Session Persistence Failure. Your user successfully logs in (200 OK), but the very next request—often within the same second—is rejected with a 401 Unauthorized.
+1. The Authentication "Ping-Pong"
+Look at the timestamps:
+9:43:06 PM: /api/login returns 200. The server issues a session cookie.
+9:43:07 PM: /api/trends returns 401. The browser either didn't send the cookie back, or the server didn't recognize it.
+2. Likely Culprits & Fixes
+A. CORS "Credentials" Missing (Most Likely)
+If your frontend and backend are on different ports (e.g., Vite on 3000, Express on 5000), the browser will block the session cookie unless explicitly allowed.
+Backend Fix: Ensure your Express CORS middleware includes credentials: true and the specific origin.
+Frontend Fix: In your fetch or axios config, you must set withCredentials: true or credentials: 'include'.
+B. The "MemoryStore" Trap
+Are you using the default express-session MemoryStore?
+The Issue: If your server auto-restarts (via tsx watch mode) due to a file change or an error, all sessions are wiped.
+Fix: Use a persistent store like connect-pg-simple (for Postgres) or connect-redis.
+C. Passport Serialization Mismatch
+In server/auth/index.ts, check your passport.serializeUser and deserializeUser.
+Your user ID is a UUID string (a2b1ac72...).
+If your deserializeUser logic is trying to find the user using parseInt() or comparing it against a Number type in the database, it will fail silently and log you out.
+Check: Ensure the ID type in your database schema matches the id being passed in the session.
+D. Cookie Security Settings
+In server/index.ts, check your session config:
+javascript
+app.use(session({
+  secret: 'your-secret',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { 
+    secure: false, // Set to TRUE only if using HTTPS
+    sameSite: 'lax' // Try 'lax' for local development
+  }
+}));
+Use code with caution.
+
+If secure: true is set but you are on http://localhost, the browser will discard the cookie.
+Quick Test
+Open your browser DevTools > Network tab, click on the /api/login request, and check the Headers. Do you see a Set-Cookie header in the response? Then check the /api/trends request—is the Cookie header being sent back?
+Are you running the frontend and backend on the same domain/port, or are they separate?

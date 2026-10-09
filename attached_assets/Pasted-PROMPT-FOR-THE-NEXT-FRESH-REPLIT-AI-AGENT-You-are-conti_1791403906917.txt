@@ -1,0 +1,70 @@
+PROMPT FOR THE NEXT FRESH REPLIT AI AGENT
+
+You are continuing work in the existing Replit workspace. Your goal is to selectively combine the genuinely useful improvements from the two KnowledgeLink versions into one stronger, working app.
+
+CANONICAL BASE
+
+The workspace already open is the mother/original app. Preserve it as the source of truth:
+- Mother/original repository: https://github.com/Mwenzyabantu/knowledgeLink
+- Updated repository to compare against: https://github.com/Chabota512/LearnLink
+- Read the existing LEARNLINK_FEATURE_COMPARISON.md first. Use it as the completed feature review so you do not repeat a broad repository audit.
+- The compared LearnLink snapshot was at commit 38d8580 (2025-11-20); the workspace baseline was d79090f (2026-10-07). Do not assume the repository called “updated” is newer or more complete.
+
+Do not replace the workspace with a fresh clone, copy the updated repository over the root, reset the current branch, or broadly rewrite the app. The current workspace may contain working fixes not present in either remote snapshot.
+
+WHAT TO MERGE
+
+Only port improvements that are real and better in LearnLink:
+
+1. Inline learning prompts
+   - Update the existing AI prompt so it asks for clarification about what the learner has said.
+   - Explicitly prohibit asking for examples, applications, or problem-solving.
+   - Keep questions short and conversational, and avoid repeating previous prompts.
+   - Preserve the mother app’s existing request/response contract, authentication, typing/pause behavior, and user context. Inspect the current caller and server/Edge Function payloads before changing either side.
+
+2. Structured AI output
+   - Consider using provider-supported response schemas for 5W+H and implementation JSON where they fit the existing Supabase Edge Function architecture.
+   - Keep the mother app’s existing JSON validation, error handling, supported model configuration, fallback behavior, and server-side secret handling.
+   - Do not replace the Edge Function setup with direct browser or server calls using a hardcoded Gemini model or API key just to copy LearnLink’s implementation.
+
+Before changing either item, check whether the current workspace already has the capability. Make the smallest compatible change. Do not duplicate or rebuild a feature that is already working in the mother app.
+
+PRESERVE THE MOTHER APP’S WORKING ADVANTAGES
+
+Keep the existing:
+- Sign-up/login, authenticated user data, and user-specific data access.
+- Supabase storage and current AI Edge Function architecture.
+- Dynamic insights, resource fetching, readiness checks, projects, implementation generation, history, personalization, and settings.
+- Existing working signup/avatar handling and other fixes already present in the workspace.
+
+Do not weaken authentication, remove user ownership checks, switch database providers, or replace the schema wholesale. Do not make destructive data changes. If a necessary schema change appears unavoidable, stop before any destructive migration and explain the specific need.
+
+DO NOT PORT MOCK-ONLY FEATURES
+
+The LearnLink snapshot contains fixed data or incomplete screen wiring in several areas. Do not adopt these as finished features:
+- Hardcoded dashboard opportunity cards, local-only save state, or mismatched project routes.
+- Mock insights, history, prerequisites, or learning-resource links.
+- Fixed implementation previews/code pages or buttons that only wait and do not generate.
+- The voice endpoint that returns a random sample transcript instead of transcribing audio.
+- Unauthenticated shared storage/routes.
+
+The simulation-generator, voice-input, and knowledge-gap-analysis components were identical in both snapshots. Do not spend time re-comparing or rewriting them unless a concrete current requirement depends on them.
+
+KEEP THE WORK FOCUSED
+
+- Start with LEARNLINK_FEATURE_COMPARISON.md, then inspect only the current files needed for the two merge candidates above.
+- Do not read every file in either repository, repeat the feature inventory, or spend time on unrelated README/planning documents, visual redesign, cosmetic cleanup, or broad refactoring.
+- Do not install packages or alter workflows unless a focused change requires it.
+- Do not inspect, copy, print, or modify secret values, `.env` files, or `.replit` credential contents. Use the workspace’s existing secrets and integrations without exposing their values.
+- Keep changes small, compatible with current conventions, and limited to the working app.
+
+TESTING IS DEFERRED
+
+The user wants implementation first and testing later. Do not start a broad test/QA pass, add a test suite, or manually test every feature in this task. Focus on implementing the selected improvements. If a minimal syntax/type check is necessary to avoid leaving an obvious compile failure, keep it limited and state that feature testing was deferred. Never claim that untested behavior was verified.
+
+DONE MEANS
+
+- Only useful, functioning improvements have been merged into the mother app.
+- Existing authentication, user data boundaries, working features, and secrets remain intact.
+- No mock-only LearnLink feature has been presented as complete.
+- The final update briefly lists what changed, what was intentionally not ported, and what remains untested for the later testing phase.

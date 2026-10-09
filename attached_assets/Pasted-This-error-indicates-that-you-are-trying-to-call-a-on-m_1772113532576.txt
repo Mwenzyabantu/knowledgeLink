@@ -1,0 +1,62 @@
+This error indicates that you are trying to call a .on() method on a variable that is currently undefined. Based on your stack trace, this is happening in server/ws.ts at line 8. 
+DrDroid
+DrDroid
+ +2
+The Likely Cause
+In a typical Express/WebSocket setup, this happens when the WebSocket Server (wss) object hasn't been initialized correctly before you try to attach event listeners to it. 
+Stack Overflow
+Stack Overflow
+ +1
+Specifically, at server/ws.ts:8:10, you probably have code like this:
+typescript
+wss.on('connection', (ws) => { ... });
+Use code with caution.
+
+If wss is undefined, the app crashes with the error you're seeing. 
+GitHub
+GitHub
+How to Fix It
+1. Check your setupWebSocket function
+Go to server/ws.ts and ensure you are correctly creating the WebSocket server instance. If you are using the ws library, it should look like this:
+typescript
+import { WebSocketServer } from 'ws';
+
+export function setupWebSocket(server: any) {
+  // Ensure wss is actually defined here!
+  const wss = new WebSocketServer({ server }); 
+
+  // Line 8 is likely here:
+  wss.on('connection', (ws) => { 
+    console.log('Client connected');
+  });
+}
+Use code with caution.
+
+2. Verify the index.ts call
+Your stack trace shows the error is triggered by a call on line 76 of server/index.ts. Ensure you are passing the correct HTTP server instance, not just the Express app object, to your setup function. 
+Karl Hadwen
+Karl Hadwen
+ +1
+Correct pattern in index.ts:
+typescript
+import { createServer } from 'http';
+import { setupWebSocket } from './ws';
+
+const app = express();
+const server = createServer(app); // Create the HTTP server
+
+// Line 76: Make sure 'server' is defined and passed correctly
+setupWebSocket(server); 
+
+server.listen(5000);
+Use code with caution.
+
+Quick Troubleshooting Checklist
+Initialization Order: Are you calling setupWebSocket before the server variable is actually assigned a value?
+Import/Export: Are you accidentally importing an empty object or the wrong function?
+Typo: Check for typos in the variable name (e.g., wss vs ws). 
+Stack Overflow
+Stack Overflow
+ +1
+Would you like me to examine the code around line 8 in server/ws.ts to find the exact variable that is undefined?
+

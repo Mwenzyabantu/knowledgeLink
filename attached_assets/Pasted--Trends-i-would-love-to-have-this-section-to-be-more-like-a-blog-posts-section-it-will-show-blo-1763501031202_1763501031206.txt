@@ -1,0 +1,34 @@
+
+**Trends**
+i would love to have this section to be more like a blog posts section. it will show blogs both ai generated and internet fetched that show the latest improvements in what the user has been learning. 
+  dashboard: user seeings one of the heading from the trands section e.g. ("Machine learning applications in your field 
+trending +23% this month") {the headings change every 5 second, dynamic transitions: fades away, swiped up/down/right/left, etc}, clicks of it > Trends: (gets directed directly to trends/trendId:/ page but when he clicks the back buttons he will be taken to trends/ page) > user finds and reads about that particular trend. This is to help the user stay uptodate with the real-world, establish more understanding of the knowledge gained, etc,, what do you think?
+
+Open Questions:
+
+Should voice prompts work the same as text prompts? (3-sec pause → AI asks for clarity) yes but if the app can learn the user's style tat would be better.
+How should we handle long voice recordings? (break into chunks?)
+Should cleanup be automatic or user-approved?- break them into chunks in the backend, transcribe, clean-up while during this process the frontend tells the user what is happening, like (loading.., transcribing.., cleaning.., done.) this showing in the very field the user is supposed to type or the words are supposed to be shown then when complete, it does some kind of typing animation like its typing what the user was speaking. 
+Should cleanup be automatic or user-approved? - automatic but not too regit/perfect.
+
+Questions for me Before We Code:
+Voice Input Priority: Should we implement voice features in Phase 1 or focus on text-based inline prompts first?
+
+Inline Prompt Persistence: Should dismissed prompts be saved somewhere so user can review "what AI suggested" later? - no, no need
+
+Opportunity Project Frequency: How often should AI generate new opportunity projects? (daily, weekly, after X learning entries?) after 3 learning entries and daily whether entry or not
+
+Prerequisite Learning Resources: When user has gaps, should we:
+
+Just show a checklist (user finds own resources)? - i would love the platform suggest some learning materials so we dont just leave the user hanging
+AI suggests specific articles/videos? - yes
+Generate mini-lessons within the app? - no, just generate things like prompts for google, youtube, and recommend books/videos/courses
+Data Requirements: What user data do we need to store to make these features work? well, look at the project to determine that. the user data that will help in personalization of the app and delvering the best user experince e.g.:
+  Learning history
+  Project attempts
+  Knowledge assessments
+  Anything else? - find out
+
+
+
+LETS AGAIN PUT TOGETHER WHAT WE HAVE TALKED ABOUT, NO CODING JUST YET

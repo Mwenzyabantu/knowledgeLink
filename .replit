@@ -1,20 +1,62 @@
-modules = ["nodejs-24"]
+modules = ["web", "postgresql-16", "python-base-3.13", "nodejs-24"]
+run = "npm run dev"
+hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
+
+[nix]
+channel = "stable-24_05"
+packages = ["nut", "glib", "gtk3", "nss", "nspr", "alsa-lib", "dbus", "cups", "pango", "cairo", "atk", "at-spi2-atk", "expat", "libdrm", "mesa", "libxkbcommon", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr", "xorg.libXrender", "xorg.libXtst", "xorg.libxcb", "xorg.libXcursor", "xorg.libXi", "xorg.libXScrnSaver", "xorg.libXinerama", "xorg.libXxf86vm", "xorg.libSM", "xorg.libICE"]
 
 [deployment]
-router = "application"
 deploymentTarget = "autoscale"
+build = ["npm", "run", "build"]
+run = ["npm", "run", "start"]
+publicDir = "dist/public"
 
-[deployment.postBuild]
-args = ["pnpm", "store", "prune"]
-env = { "CI" = "true" }
+[env]
+PORT = "5000"
 
 [workflows]
 runButton = "Project"
 
-[agent]
-stack = "PNPM_WORKSPACE"
-expertMode = true
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
 
-[postMerge]
-path = "scripts/post-merge.sh"
-timeoutMs = 20000
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "KnowledgeLink Desktop"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"
+waitForPort = 5000
+
+[[workflows.workflow]]
+name = "KnowledgeLink Desktop"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run desktop:dev"
+
+[workflows.workflow.metadata]
+outputType = "vnc"
+
+[agent]
+integrations = ["javascript_mem_db:1.0.0", "javascript_openai:1.0.0", "javascript_gemini:1.0.0"]
+
+[userenv]
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+

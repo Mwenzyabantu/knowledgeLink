@@ -1,0 +1,228 @@
+Alright Chabota — let’s lock in the **real, correct logic** for generating prerequisites.
+What you’re trying to build is not trivial, but I’ll give you a clean mental model and then a perfect algorithm you can implement.
+
+This is **NOT about reading your file** right now — this is about fixing the *thinking* behind your prerequisite generator so it stops giving “too specific” items like:
+
+❌ “How to simulate a mass damper”
+❌ “How to design a PID controller inside Simulink”
+❌ “Understanding damping coefficient equations”
+
+Those are **learning outcomes**, not prerequisites.
+
+---
+
+# 🧠 **THE GOLDEN RULE OF PREREQUISITES**
+
+### **A prerequisite must be something you should already know BEFORE you start the project.**
+
+A prerequisite is **not**:
+
+* The topic the project will teach you
+* The steps inside the project
+* New domain knowledge introduced in the project
+
+A prerequisite is:
+
+* The skills or knowledge required to *follow* the project.
+
+This distinction is EVERYTHING.
+
+---
+
+# 🔥 LET’S BUILD THE REAL PREREQUISITE LOGIC
+
+Your prerequisite generator must evaluate the project using **four categories** only:
+
+---
+
+# **1️⃣ Tool & Environment Prerequisites**
+
+(What the user must already know how to use)
+
+Examples:
+
+* “Basic familiarity with MATLAB”
+* “Know how to navigate MATLAB interface”
+* “Understand what Simulink is”
+* “Basic Python programming” (if project uses Python)
+* “Familiar with Arduino IDE” (if microcontrollers)
+* “Basic Git usage” (if cloning repos)
+
+This ALWAYS depends on:
+
+* project.framework
+* project.language
+* project.environment
+
+---
+
+# **2️⃣ Conceptual Foundations (Fundamentals)**
+
+(What the user should conceptually understand before diving deeper)
+
+Examples:
+
+* “Basic understanding of what a simulation is”
+* “Basic understanding of control systems”
+* “Know Newton’s laws” (for physics simulations)
+* “Basic understanding of mechanical vibrations”
+* “Basic circuits knowledge”
+
+These are **broad**, not project-specific.
+
+---
+
+# **3️⃣ Domain Knowledge (High-level only!)**
+
+This one is VERY IMPORTANT.
+
+These are **foundations**, not the actual topic being taught.
+
+Good domain prerequisites:
+
+* “Basic physics knowledge”
+* “Understand mass-spring-damper models at a high level”
+* “Know what torque and speed are”
+* “Understand what a user interface is”
+* “Basic database concepts”
+
+Bad domain prerequisites:
+
+* ❌ “Compute damping ratio”
+* ❌ “Simulate a mass damper”
+* ❌ “Design a PID controller”
+
+Those are **learning goals**, not prerequisites.
+
+---
+
+# **4️⃣ Meta-Skills (General skills that apply everywhere)**
+
+Always optional, but help with user readiness:
+
+* “Ability to follow step-by-step instructions”
+* “Ability to troubleshoot basic errors”
+* “Some experience reading documentation”
+
+These ALWAYS help but NEVER block.
+
+---
+
+# 🎯 **THE PREREQUISITE ALGORITHM (Copy/Paste into your backend)**
+
+### **(Pseudocode)**
+
+```
+function generatePrerequisites(project) {
+  
+  prerequisites = []
+
+  // 1. Tool / Environment Skills
+  if project.tools.includes("MATLAB"):
+      prerequisites.add("Basic familiarity with MATLAB")
+      prerequisites.add("Know how to navigate MATLAB interface")
+
+  if project.tools.includes("Simulink"):
+      prerequisites.add("Basic understanding of what Simulink is")
+
+  if project.language includes "Python":
+      prerequisites.add("Basic Python programming")
+
+  // 2. Conceptual Foundations
+  if project.category == "Simulation":
+      prerequisites.add("Basic understanding of what a simulation is")
+
+  if project.domain == "Physics":
+      prerequisites.add("Basic physics knowledge")
+
+  if project.domain == "Control Systems":
+      prerequisites.add("Basic understanding of feedback and control concepts")
+
+  // 3. Domain High-Level Knowledge
+  prerequisites.add("Familiarity with the core domain concepts at a basic level")
+
+  // 4. Meta Skills
+  prerequisites.add("Ability to follow instructions")
+  prerequisites.add("Ability to troubleshoot basic issues")
+
+  // Remove duplicates, keep broad, and classify:
+  return classifyPrerequisites(prerequisites)
+}
+```
+
+---
+
+# ⭐ **THE KEY FILTER**
+
+Whenever generating prerequisites:
+
+### ❌ “If a skill is directly part of the project’s outcome → REMOVE IT.”
+
+Example project:
+**"Mass-damper simulation using Simulink"**
+
+REMOVE:
+
+* how to simulate mass damper
+* how to design mass damper
+* how to connect integrator blocks
+
+KEEP:
+
+* understanding Simulink basics
+* knowing what a simulation is
+* basic physics
+
+---
+
+# 💡 **Let me validate your example using the new algorithm**
+
+### Project:
+
+*Simulation of a Mass Damper in MATLAB Simulink*
+
+### Correct prerequisites your system should generate:
+
+---
+
+## **ESSENTIAL**
+
+* Basic familiarity with MATLAB
+* Know how to navigate MATLAB interface
+* Know what Simulink is
+* Understand what a simulation is
+* Basic understanding of physics (mass, force, acceleration)
+
+---
+
+## **HELPFUL**
+
+* Understanding what differential equations represent
+* Familiarity with mechanical systems terminology
+
+---
+
+## **OPTIONAL**
+
+* Ability to follow instructions
+* Ability to troubleshoot minor errors
+
+---
+
+# 🤝 **If you want, I can now:**
+
+### ✔ rewrite your actual code in `knowledge-detail.tsx`
+
+### ✔ rewrite the backend prerequisite generator
+
+### ✔ write a perfect AI system prompt for generating prerequisites
+
+### ✔ test it using real project examples
+
+Just tell me:
+
+**“Fix the code using this logic”** or
+**“Write the AI system prompt for prerequisite generation”**
+
+or
+**"Do both"**

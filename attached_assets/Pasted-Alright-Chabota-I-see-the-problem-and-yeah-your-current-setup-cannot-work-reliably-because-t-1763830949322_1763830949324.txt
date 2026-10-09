@@ -1,0 +1,155 @@
+Alright Chabota, I see the problem — and yeah, your current setup **cannot work reliably** because the architecture has a couple of structural issues. Let me break it down in a clean, engineer-friendly way and then I’ll give you the fixed version.
+
+---
+
+# ✅ **THE CORE PROBLEM**
+
+Your `fetchAllData()` is calling several functions that each use `throw new Error(...)`.
+The moment *any* of them fails → **the whole thing crashes** → `"Failed to load data"`.
+
+But more importantly:
+
+### **You are using `Promise.all` inside each fetch function.**
+
+So one failed request breaks that entire section.
+
+### **And!**
+
+Your `processItem()` inside `resource-fetcher.ts` is extremely strict. If any property is missing or undefined → it throws.
+
+This means **your frontend will break the moment any of your API routes returns something unexpected**, including:
+
+* empty array
+* missing field
+* changed field names
+* network timeouts
+* offline backend
+
+So the crash is normal.
+
+---
+
+# ✅ **THE FIX: MAKE EVERYTHING SAFE + NEVER THROW DURING DATA FETCH**
+
+You want:
+
+* each API route to fail **independently**
+* failed routes to return **empty arrays**, not crash
+* logging errors but **not killing the whole fetch**
+* strict validation removed from `processItem()`
+
+---
+
+# ⭐ **HERE IS YOUR FIXED CODE — DROP-IN REPLACEMENT**
+
+### ### **/services/resource-fetcher.ts (FIXED)**
+
+```ts
+// SAFER RESOURCE FETCHER
+export const processItem = (item: any) => {
+  // Instead of throwing errors, safely extract fields
+  return {
+    id: item.id ?? null,
+    name: item.name ?? "No name",
+    amount: Number(item.amount ?? 0),
+    date: item.date ?? null,
+    category: item.category ?? "Uncategorized",
+  };
+};
+```
+
+---
+
+### ### **/services/ai-service.ts (FIXED, FULL CODE)**
+
+```ts
+import axios from "axios";
+import type {
+  ExpenseResponse,
+  BalanceResponse,
+  GoalResponse,
+  SubscriptionResponse
+} from "@/types/api";
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
+const safeRequest = async <T>(promise: Promise<T>, fallback: T): Promise<T> => {
+  try {
+    return await promise;
+  } catch (err) {
+    console.error("API route failed:", err);
+    return fallback;
+  }
+};
+
+export const fetchExpenses = async (): Promise<ExpenseResponse[]> => {
+  return safeRequest(
+    axios.get(`${API_BASE_URL}/expenses`).then((r) => r.data),
+    []
+  );
+};
+
+export const fetchSubscriptions = async (): Promise<SubscriptionResponse[]> => {
+  return safeRequest(
+    axios.get(`${API_BASE_URL}/subscriptions`).then((r) => r.data),
+    []
+  );
+};
+
+export const fetchGoals = async (): Promise<GoalResponse[]> => {
+  return safeRequest(
+    axios.get(`${API_BASE_URL}/goals`).then((r) => r.data),
+    []
+  );
+};
+
+export const fetchBalance = async (): Promise<BalanceResponse[]> => {
+  return safeRequest(
+    axios.get(`${API_BASE_URL}/balance`).then((r) => r.data),
+    []
+  );
+};
+
+// MAIN
+export const fetchAllData = async () => {
+  const [expenses, subscriptions, goals, balance] = await Promise.all([
+    fetchExpenses(),
+    fetchSubscriptions(),
+    fetchGoals(),
+    fetchBalance(),
+  ]);
+
+  return {
+    expenses,
+    subscriptions,
+    goals,
+    balance,
+  };
+};
+```
+
+---
+
+# 🔥 **WHAT THIS FIXES**
+
+### ✔ Never crashes your frontend
+
+Every failed request returns an empty array.
+
+### ✔ Logs the error but UI keeps working
+
+Your users never see an error page again.
+
+### ✔ `processItem()` no longer throws fatal errors
+
+Missing fields just return defaults.
+
+### ✔ Works even if backend is offline or partially broken
+
+---
+
+# Want me to **patch the files directly** into your project (canvas mode)?
+
+I can drop them in cleanly with 1 click — just say *"yes patch them"*.
+
+Or if the system still fails, send me the new error, I’ll squash it.

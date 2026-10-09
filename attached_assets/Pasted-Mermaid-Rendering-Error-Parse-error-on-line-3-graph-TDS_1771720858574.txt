@@ -1,0 +1,68 @@
+Mermaid Rendering Error:
+
+Parse error on line 3:
+graph TDSTART- Initialize Simulatio
+---------------^
+Expecting 'SEMI', 'NEWLINE', 'EOF', 'AMP', 'START_LINK', 'LINK', 'LINK_ID', got 'NODE_STRING'
+Raw Diagram Content:
+
+START
+- Initialize Simulation Parameters (SIMULATION_DURATION, TIME_STEP, WAYPOINT_THRESHOLD, DRONE_SPEED, Sensor Noise STDs [GPS_NOISE_STD, UWB_NOISE_STD, IMU_YAW_NOISE_STD])
+- Setup Environment (Create Drone object, Define Anchor positions, Define Waypoint path)
+- Initialize Data Log (Empty lists for True Positions, Estimated Positions, Raw GPS Readings)
+
+LOOP for simulation_step_idx FROM 0 TO SIMULATION_DURATION - 1:
+  - Waypoint Navigation Logic:
+    - IF current_waypoint_index < total number of waypoints:
+      - Set current_target = waypoints[current_waypoint_index]
+      - Drone calculates velocity to move towards current_target
+      - Drone updates its TRUE position based on velocity and TIME_STEP
+      - IF distance(Drone.true_pos, current_target) < WAYPOINT_THRESHOLD:
+        - PRINT "Waypoint reached"
+        - INCREMENT current_waypoint_index
+        - Drone stops (velocity = 0) briefly
+    - ELSE (All waypoints visited):
+      - Drone stops (velocity = 0)
+      - Drone updates its TRUE position (remains stationary)
+
+  - Simulate Sensor Readings:
+    - current_gps_reading = simulate_gps(Drone.true_pos)
+    - current_uwb_ranges = []
+    - FOR each anchor IN anchors:
+      - ADD simulate_uwb_range(Drone.true_pos, anchor.position) TO current_uwb_ranges
+    - current_imu_yaw_reading = simulate_imu_yaw(Drone.true_yaw)
+
+  - Sensor Fusion & Position Estimation (UWB-enhanced):
+    - Initialize Drone.estimated_pos with current_gps_reading (serving as baseline and ambiguity resolver)
+    - Initialize Drone.estimated_yaw with current_imu_yaw_reading
+
+    - IF number of anchors >= 2:
+      - Select anchor1, anchor2 from available anchors (e.g., first two)
+      - Retrieve measured_distance1, measured_distance2 for anchor1, anchor2
+      - Call solve_position_using_cosine_rule_triangulation(Drone.estimated_pos, anchor1, measured_distance1, anchor2, measured_distance2)
+      - IF uwb_triangulated_pos IS NOT NULL (valid triangulation):
+        - Update Drone.estimated_pos = uwb_triangulated_pos (prioritize UWB for precision)
+      - ELSE (Triangulation failed - e.g., invalid triangle):
+        - (Continue using the GPS-initialized Drone.estimated_pos)
+    - ELSE (Not enough anchors for triangulation):
+      - (Continue using the GPS-initialized Drone.estimated_pos)
+
+  - Log Data:
+    - Add Drone.true_pos to true_drone_positions
+    - Add Drone.estimated_pos to estimated_drone_positions
+    - Add current_gps_reading to raw_gps_readings
+
+END LOOP
+
+- Post-Processing & Visualization:
+  - Convert logged position lists to NumPy arrays
+  - Generate Matplotlib Plot:
+    - True Drone Path
+    - Estimated Drone Path (UWB-enhanced)
+    - Raw GPS Path
+    - Anchor locations
+    - Waypoint locations
+  - Add labels, title, grid, legend, and set axis 'equal'
+  - Display Plot
+
+END

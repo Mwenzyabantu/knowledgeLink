@@ -1,0 +1,73 @@
+according to the files @notes.md and @planned.md what deign features have not been implemented, example, is the trends page made, and where do i find it in the ui frontend
+
+SU
+
+successfulcroco
+Assistant
+just now
+Read 4 files
+Looking at the notes.md and planned.md files, here are the major design features that have not been implemented yet:
+
+Not Implemented Features:
+1. Inline Conversational AI Prompts (Code Editor Style)
+3-second pause detection after user stops typing
+AI asking for more clarity (greyed out, italic inline text)
+Progressive prompts that disappear when user types again
+Status: Not implemented
+2. Knowledge Gap Analysis & Prerequisite Checklist
+AI analyzing user's knowledge base
+Prerequisite checklist before showing full project
+Readiness score calculation
+Learning resource recommendations (Google prompts, YouTube, books, courses)
+Status: Not implemented
+3. Opportunity Projects (AI-Generated Recommendations)
+AI-generated project suggestions based on learning patterns
+Generation after every 3 learning entries or daily
+Contextual CTA buttons ("Find Project Details", etc.)
+Status: Not implemented
+4. Trends Section (Blog-Style Learning Updates)
+Trends page is NOT made
+Rotating headline on dashboard (5-second intervals with transitions)
+Full trend articles page (/trends and /trends/:trendId)
+AI-generated and internet-fetched trend content
+Status: Not implemented - No trends page exists in the UI
+5. Enhanced Voice Input
+Backend chunking for recordings >30 seconds
+Status messages: "Loading...", "Transcribing...", "Cleaning...", "Done."
+Typing animation in input field
+AI cleanup of transcripts (removing filler words)
+Status: Basic voice input exists in client/src/components/voice-input.tsx, but enhanced features not implemented
+6. AI Companion Enhancements
+Partially implemented - Basic page exists at client/src/pages/ai-companion.tsx
+Missing features:
+Chat continuation from dashboard
+Auto-save when navigating away
+AI-generated tags with edit capability
+Validation preventing untagged chats
+Collapsed/expanded state with ∨ button
+7. Implementation Generation System (Two-Step Process)
+Preview summary before full generation
+"Generate New Implementation" button
+"Proceed with Implementation" button
+Full implementation page with loading state
+Status: Not implemented
+8. Post-Implementation Support Chat
+Project-specific Q&A chat on implementation page
+Tool conversion feature (MATLAB → Python, etc.)
+Context-aware AI responses about the project
+Status: Not implemented
+Where to Find Current Pages in UI:
+Current routes (from client/src/App.tsx):
+
+/ - Dashboard
+/knowledge - Knowledge page
+/insights - Insights page
+/history - History/Timeline page
+/ai-companion - AI Companion (basic implementation)
+/settings - Settings page
+Missing routes:
+
+/trends - Does not exist
+/trends/:trendId - Does not exist
+/implementation/:id - Does not exist
+The Trends section is completely missing from the application - no page, no routes, no UI components for it have been created yet.

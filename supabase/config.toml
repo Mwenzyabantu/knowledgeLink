@@ -1,0 +1,10 @@
+project_id = "hzhweoiwfldtmwphdkzr"
+
+[functions.ai-generate]
+verify_jwt = true
+
+[functions.ai-chat]
+verify_jwt = true
+
+[functions.ai-insights]
+verify_jwt = true

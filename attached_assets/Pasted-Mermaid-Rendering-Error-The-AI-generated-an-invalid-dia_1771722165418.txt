@@ -1,0 +1,58 @@
+Mermaid Rendering Error:
+
+The AI generated an invalid diagram. Attempting to display as text instead.
+
+Raw Diagram Content:
+
+```mermaid
+graph TD
+    A[Start: RLC Filter Analysis] --> B{Initialize Parameters};
+    B --> C[Define R, L, C];
+    C --> D[Define V_dc, V_ripple_amp, f_ripple];
+    D --> E[Define t_end, num_points, freqs_bode];
+    E --> F[Print Initial Parameters];
+
+    F --> G[1. Design Transfer Function H(s) = 1 / (LC*s^2 + RC*s + 1)];
+    G --> H[Print Transfer Function];
+
+    H --> I[2. Analyze Frequency Response];
+    I --> J[Get Bode Plot Data (Magnitude in dB, Frequencies in rad/s)];
+    J --> K[Calculate Filter Natural Frequency (f_n)];
+    K --> L[Print f_n];
+    L --> M[Determine Magnitude at f_ripple using Interpolation];
+    M --> N[Print Ripple Attenuation at f_ripple];
+
+    N --> O[3. Prepare Time-Domain Input Signal];
+    O --> P[Generate Time Vector (time_vec)];
+    P --> Q[Define Input Voltage Function V_in(t)];
+    Q --> R[Generate Input Voltages Array (input_voltages)];
+
+    R --> S[4. Simulate Time-Domain Output Signal];
+    S --> T[Use Transfer Function to Simulate Output (output_voltages, t_out)];
+
+    T --> U[5. Calculate Ripple Metrics];
+    U --> V[Calculate Input Peak-to-Peak Ripple (input_ripple_pp)];
+    V --> W{Extract Steady-State Output}; 
+    W --> X[Calculate Output Peak-to-Peak Ripple (stable_output_ripple_pp)];
+    X --> Y{Is input_ripple_pp > 1e-9?};
+    Y -- Yes --> Z[Calculate Ripple Reduction Factor & Attenuation (dB)];
+    Z --> AA[Print Ripple Metrics];
+    Y -- No --> AB[Set Ripple Reduction to 0, Attenuation to 0];
+    AB --> AA;
+
+    AA --> AC[6. Plot Results];
+    AC --> AD[Create Figure with 2 Subplots];
+    AD --> AE[Subplot 1: Bode Magnitude Plot];
+    AE --> AF[Plot Magnitude vs. Frequency (semilogx)];
+    AF --> AG[Add Vertical Lines at f_ripple, f_n];
+    AG --> AH[Add Text Annotation for Ripple Attenuation];
+    AH --> AI[Set Plot Titles, Labels, Grid, Legend];
+    AI --> AJ[Subplot 2: Time Domain Response Plot];
+    AJ --> AK[Plot Input Voltage vs. Time];
+    AK --> AL[Plot Output Voltage vs. Time];
+    AL --> AM[Add Text Annotations for P-P Ripple];
+    AM --> AN[Set Plot Titles, Labels, Grid, Legend];
+    AN --> AO[Adjust Layout & Add Super Title];
+    AO --> AP[Show Plots];
+    AP --> AQ[End Analysis];
+```
