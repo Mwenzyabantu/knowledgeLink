@@ -1,8 +1,10 @@
 // ===== CONSTANTS =====
-// Use current stable Gemini models. Flash is primary; Flash-Lite is the
-// fallback in case the primary model is unavailable for this API project.
+// The live key matrix passed both models across all five configured keys.
+// Flash is for coding and deeper reasoning; Flash-Lite is for quick helper
+// tasks and as the fallback when the primary model is unavailable.
 export const MODELS = {
-  primary: 'gemini-3.8-flash',
+  primary: 'gemini-3.6-flash',
+  fast: 'gemini-3.5-flash-lite',
   fallback: 'gemini-3.5-flash-lite',
 }
 
@@ -253,11 +255,20 @@ export async function callGemini(
     return result
   } catch (err) {
     if (err instanceof TimeoutError || !(err instanceof APIError)) throw err
-    // Primary model failed — try the fallback with fresh retry rounds.
+    // A model request failed — switch to the other tested text model with
+    // fresh key-rotation rounds. Lightweight requests can fall back to Flash.
     if (model === MODELS.primary) {
       logger.warn('callGemini', `Primary model (${model}) failed, trying fallback (${MODELS.fallback})`, { error: (err as Error).message })
       return withTimeout(
         callGeminiModel(prompt, MODELS.fallback, generationConfig),
+        TIMEOUTS.gemini,
+        'Gemini',
+      )
+    }
+    if (model === MODELS.fast) {
+      logger.warn('callGemini', `Fast model (${model}) failed, trying primary (${MODELS.primary})`, { error: (err as Error).message })
+      return withTimeout(
+        callGeminiModel(prompt, MODELS.primary, generationConfig),
         TIMEOUTS.gemini,
         'Gemini',
       )

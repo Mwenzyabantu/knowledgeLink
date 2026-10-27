@@ -4,6 +4,7 @@ import {
   extractJSON,
   jsonResponse,
   logger,
+  MODELS,
   optionsResponse,
   requireFields,
   ValidationError,
@@ -397,7 +398,7 @@ Return ONLY valid JSON:
   "removed": ["prerequisites already covered by mastered skills"]
 }`
 
-  const text = await callGemini(prompt)
+  const text = await callGemini(prompt, MODELS.fast)
   return extractJSON(text)
 }
 
@@ -421,7 +422,7 @@ Return ONLY valid JSON:
   "reasoning": "why this template is the best structural match"
 }`
 
-  const text = await callGemini(prompt)
+  const text = await callGemini(prompt, MODELS.fast)
   return extractJSON(text)
 }
 
@@ -487,7 +488,7 @@ Return ONLY valid JSON:
   "flowDiagram": "flowchart TD\\n  A[Start] --> B[Step 1]\\n  B --> C[Step 2]\\n  ..."
 }`
 
-  const text = await callGemini(prompt)
+  const text = await callGemini(prompt, MODELS.fast)
   return extractJSON(text)
 }
 
@@ -508,7 +509,7 @@ Return ONLY a valid JSON array (one entry per resource, same order):
   "relevanceReason": "one sentence on why this resource is relevant"
 }]`
 
-  const text = await callGemini(prompt)
+  const text = await callGemini(prompt, MODELS.fast)
   return extractJSON(text)
 }
 
@@ -537,8 +538,8 @@ Rules:
 Return ONLY a valid JSON array of 6 strings with no other text:
 ["specific query 1", "specific query 2", "specific query 3", "specific query 4", "specific query 5", "specific query 6"]`
 
-  // Use Groq (faster, higher quota) for query generation
-  const text = await callGemini(prompt)
+  // Search-query drafting is a lightweight task, so use Flash-Lite.
+  const text = await callGemini(prompt, MODELS.fast)
   return extractJSON(text)
 }
 

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Settings, 
@@ -34,6 +35,51 @@ import {
 import { Input } from "@/components/ui/input";
 import { UserSettings as UserSettingsType } from "@shared/schema";
 import { compressAvatarImage } from "@/lib/avatar-image";
+
+type GeminiKeyCheckResult = {
+  keyName: string;
+  model: string;
+  status: string;
+  httpStatus?: number;
+  latencyMs?: number;
+  reservedForConnectTheDots?: boolean;
+};
+
+type GeminiKeyCheckReport = {
+  totalProbes: number;
+  statusCounts: Record<string, number>;
+  results: GeminiKeyCheckResult[];
+};
+
+function diagnosticStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    working: "Working",
+    invalid_key: "Invalid key",
+    quota_exhausted: "Quota",
+    access_denied: "Access denied",
+    model_unavailable: "Unavailable",
+    request_rejected: "Rejected",
+    provider_unavailable: "Provider error",
+    timeout: "Timed out",
+    network_error: "Network error",
+    not_configured: "Not configured",
+    request_failed: "Failed",
+  };
+  return labels[status] ?? status.replaceAll("_", " ");
+}
+
+function diagnosticStatusClass(status: string) {
+  if (status === "working") {
+    return "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
+  }
+  if (status === "quota_exhausted" || status === "request_rejected") {
+    return "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300";
+  }
+  if (status === "not_configured" || status === "model_unavailable") {
+    return "border-muted bg-muted text-muted-foreground";
+  }
+  return "border-destructive/30 bg-destructive/10 text-destructive";
+}
 
 export default function SettingsPage() {
   const { user } = useContext(AuthContext) || { user: null };
@@ -69,6 +115,26 @@ export default function SettingsPage() {
       toast({
         title: "Settings updated",
         description: "Your preferences have been saved.",
+      });
+    },
+  });
+
+  const geminiCheckMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke<GeminiKeyCheckReport>(
+        "gemini-key-check",
+        { body: { confirmLiveTests: true } },
+      );
+      if (error) throw error;
+      if (!data || !Array.isArray(data.results)) {
+        throw new Error("The diagnostic returned an unexpected response.");
+      }
+      return data;
+    },
+    onSuccess: (report) => {
+      toast({
+        title: "Gemini checks finished",
+        description: `${report.statusCounts.working ?? 0} of ${report.totalProbes} key/model checks returned HTTP 200.`,
       });
     },
   });
@@ -135,6 +201,20 @@ export default function SettingsPage() {
       });
     },
   });
+
+  const diagnosticReport = geminiCheckMutation.data;
+  const diagnosticKeys = Array.from(
+    new Set(diagnosticReport?.results.map((result) => result.keyName) ?? []),
+  );
+  const diagnosticModels = Array.from(
+    new Set(diagnosticReport?.results.map((result) => result.model) ?? []),
+  );
+  const diagnosticResults = new Map(
+    diagnosticReport?.results.map((result) => [
+      `${result.model}:${result.keyName}`,
+      result,
+    ]) ?? [],
+  );
 
   if (isLoading) {
     return (
@@ -250,6 +330,126 @@ export default function SettingsPage() {
               />
             </div>
           </div>
+        </section>
+
+        <Separator />
+
+        <section>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold mb-2">Gemini API checks</h2>
+              <p className="text-sm text-muted-foreground max-w-2xl">
+                Run live probes for the saved Gemini keys against the models from your test list.
+                This makes up to 55 small generation requests and uses quota, including Key 4,
+                reserved for Connect-the-Dots. Wait five minutes before running it again.
+              </p>
+            </div>
+            <Button
+              onClick={() => geminiCheckMutation.mutate()}
+              disabled={geminiCheckMutation.isPending}
+              data-testid="button-run-gemini-checks"
+              className="shrink-0"
+            >
+              {geminiCheckMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              {geminiCheckMutation.isPending ? "Testing keys and models…" : "Run Gemini checks"}
+            </Button>
+          </div>
+
+          {geminiCheckMutation.isPending && (
+            <p className="mt-3 text-sm text-muted-foreground" role="status">
+              This may take up to about two minutes. Keep this page open while it runs.
+            </p>
+          )}
+
+          {geminiCheckMutation.isError && (
+            <div
+              className="mt-4 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+              role="alert"
+            >
+              {geminiCheckMutation.error instanceof Error
+                ? geminiCheckMutation.error.message
+                : "The Gemini diagnostic could not run. Make sure you are signed in and try again later."}
+            </div>
+          )}
+
+          {diagnosticReport && (
+            <div className="mt-5 space-y-3">
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                <span className="font-medium">
+                  {diagnosticReport.statusCounts.working ?? 0} working
+                </span>
+                <span className="text-muted-foreground">
+                  {diagnosticReport.totalProbes} key/model checks
+                </span>
+              </div>
+              <div className="overflow-x-auto rounded-md border">
+                <table className="w-full min-w-[760px] text-left text-sm">
+                  <caption className="sr-only">
+                    Gemini API key results by model. No API key values are shown.
+                  </caption>
+                  <thead className="bg-muted/60">
+                    <tr>
+                      <th scope="col" className="px-3 py-2 font-medium">Model</th>
+                      {diagnosticKeys.map((keyName) => (
+                        <th
+                          scope="col"
+                          className="px-3 py-2 font-medium"
+                          key={keyName}
+                          title={keyName === "GEMINI_API_KEY_4"
+                            ? "Reserved for Connect-the-Dots"
+                            : keyName}
+                        >
+                          {keyName.replace("GEMINI_API_KEY_", "Key ")}
+                          {keyName === "GEMINI_API_KEY_4" ? " *" : ""}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {diagnosticModels.map((model) => (
+                      <tr className="border-t" key={model}>
+                        <th scope="row" className="px-3 py-2 font-mono text-xs font-medium">
+                          {model}
+                        </th>
+                        {diagnosticKeys.map((keyName) => {
+                          const result = diagnosticResults.get(`${model}:${keyName}`);
+                          if (!result) {
+                            return (
+                              <td className="px-3 py-2" key={keyName}>
+                                <span className="text-muted-foreground">—</span>
+                              </td>
+                            );
+                          }
+                          const title = [
+                            diagnosticStatusLabel(result.status),
+                            result.httpStatus ? `HTTP ${result.httpStatus}` : null,
+                            result.latencyMs !== undefined ? `${result.latencyMs} ms` : null,
+                          ].filter(Boolean).join(" · ");
+                          return (
+                            <td className="px-3 py-2" key={keyName}>
+                              <span
+                                className={`inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium ${diagnosticStatusClass(result.status)}`}
+                                title={title}
+                              >
+                                {diagnosticStatusLabel(result.status)}
+                              </span>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {diagnosticKeys.includes("GEMINI_API_KEY_4") && (
+                <p className="text-xs text-muted-foreground">
+                  * Key 4 is the dedicated Connect-the-Dots key. The probe may use its Gemini quota.
+                </p>
+              )}
+            </div>
+          )}
         </section>
 
         <Separator />

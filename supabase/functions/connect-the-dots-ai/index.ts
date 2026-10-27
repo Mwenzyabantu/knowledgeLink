@@ -1,5 +1,5 @@
 const MODELS = {
-  primary: "gemini-3.8-flash",
+  primary: "gemini-3.6-flash",
   fallback: "gemini-3.5-flash-lite",
 } as const;
 

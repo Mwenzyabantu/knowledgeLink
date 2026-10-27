@@ -228,7 +228,7 @@ If the latest learner message has nothing specific that needs clarification, ret
 
 Return ONLY the question as a plain string. No quotes, no explanation.`
 
-  const text = await callGemini(prompt)
+  const text = await callGemini(prompt, MODELS.fast)
   return text.trim().replace(/^["']|["']$/g, '')
 }
 
@@ -243,7 +243,7 @@ Content: ${String(content).slice(0, 1000)}${(existingTags as string[]).length ? 
 
 Return ONLY a valid JSON array of strings. Example: ["machine learning", "Python", "classification"]`
 
-  const text = await callGemini(prompt)
+  const text = await callGemini(prompt, MODELS.fast)
   return extractJSON<string[]>(text)
 }
 

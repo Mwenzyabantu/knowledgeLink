@@ -1,6 +1,6 @@
 - [Public repository credential exposure](credential-exposure.md) — upstream `.replit` contains credentials; use fresh secrets and never restore its inline values.
 - [Avatar upload payloads](avatar-upload-payloads.md) — keep base64 photos out of Auth metadata and tokens; use small profile writes or storage URLs.
-- [Gemini model availability](gemini-model-availability.md) — a model 404 can mean that model is unavailable to the API project, not that its key is missing.
+- [Gemini model availability](gemini-model-availability.md) — distinguish key failures from model access/timeouts; current text choices are tested 3.6 Flash and 3.5 Flash-Lite.
 - [Connect-the-Dots Gemini keys](connect-the-dots-gemini-keys.md) — reserve key 4 for this feature and fall back to key 3.
 - [Supabase CLI workflow](supabase-cli.md) — use the CLI; confirm the target and inspect dry-runs for legacy migrations before pushing schema.
 - [Instruction content formatting](instruction-content-formatting.md) — show build instructions as separate steps or bullets, with explanatory prose kept in paragraphs.

@@ -4,6 +4,7 @@ import {
   extractJSON,
   jsonResponse,
   logger,
+  MODELS,
   optionsResponse,
   requireFields,
   ValidationError,
@@ -47,7 +48,7 @@ Content: ${String(content).slice(0, 1000)}${(existingTags as string[]).length ? 
 
 Return ONLY a valid JSON array of strings. Example: ["machine learning", "Python", "neural networks"]`
 
-  const text = await callGemini(prompt)
+  const text = await callGemini(prompt, MODELS.fast)
   return extractJSON<string[]>(text)
 }
 
