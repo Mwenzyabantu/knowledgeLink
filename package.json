@@ -9,6 +9,7 @@
     "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist --define:process.env.NODE_ENV='\"production\"'",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc",
+    "test:edge-functions": "node --test tests/edge-functions.test.mjs",
     "desktop:config": "node electron/generate-runtime-config.mjs",
     "desktop:dev": "npm run desktop:config && npm run build && electron electron/main.cjs",
     "desktop:dist": "npm run desktop:config && npm run build && electron-builder"
