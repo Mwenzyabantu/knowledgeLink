@@ -11,3 +11,6 @@ verify_jwt = true
 
 [functions.ai-insights]
 verify_jwt = true
+
+[functions.gemini-key-check]
+verify_jwt = true
