@@ -1,0 +1,10 @@
+- [Public repository credential exposure](credential-exposure.md) — upstream `.replit` contains credentials; use fresh secrets and never restore its inline values.
+- [Avatar upload payloads](avatar-upload-payloads.md) — keep base64 photos out of Auth metadata and tokens; use small profile writes or storage URLs.
+- [Gemini model availability](gemini-model-availability.md) — a model 404 can mean that model is unavailable to the API project, not that its key is missing.
+- [Connect-the-Dots Gemini keys](connect-the-dots-gemini-keys.md) — reserve key 4 for this feature and fall back to key 3.
+- [Supabase CLI workflow](supabase-cli.md) — use the CLI; confirm the target and inspect dry-runs for legacy migrations before pushing schema.
+- [Instruction content formatting](instruction-content-formatting.md) — show build instructions as separate steps or bullets, with explanatory prose kept in paragraphs.
+- [Canonical project lineage](canonical-project.md) — this workspace is the mother/original reference; compare forks against it and preserve it as the baseline.
+- [Protected root imports](protected-root-imports.md) — replace project files without copying or deleting `.git` or Replit-managed workspace directories.
+- [Electron in Replit](electron-replit.md) — install its Nix desktop libraries; verify VNC despite possible DBus/GPU warnings.
+- [Windows Electron listener](electron-windows-listen.md) — KnowledgeLink's packaged Windows server fails at startup when `reusePort: true` is passed to `listen()`.

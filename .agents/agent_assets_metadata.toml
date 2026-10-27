@@ -1,0 +1,30 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "IuETCV8NCSQDIwgQwyL_h"
+uri = "file://LEARNLINK_FEATURE_COMPARISON.md"
+type = "text"
+title = "LearnLink Feature Comparison"
+description = "Feature-by-feature review of the current mother workspace and the LearnLink GitHub snapshot, with strengths, gaps, and selective merge recommendations."
+logical_id = "e3414313-0180-4ff9-9963-fbe2b73fb01b"
+content_hash = "sha256:0267246b6aca8d6a66f918586f138de53fbaabea1f96c562b2525ef72ff6115c"
+size = 12947
+mtime_ms = 1791398893398
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:c0ee80dc-396c-4859-867e-b76c29c0a40c/e3414313-0180-4ff9-9963-fbe2b73fb01b/178ec84a-7101-483a-b7b7-494b36045ff7"
+storage_version_token = "1791398910928729"
+content_type = "text/markdown"
+
+[[outputs]]
+id = "IgfXa9mwYmAAOuck_xG83"
+uri = "file://MERGE_AGENT_PROMPT.txt"
+type = "text"
+title = "Fresh Agent Merge Prompt"
+description = "A focused handoff prompt directing the next Replit agent to preserve the mother app, port only verified improvements, avoid mock features, and defer testing."
+logical_id = "5a9f88f9-1aee-41ab-bd8b-cdc8476ce8b3"
+content_hash = "sha256:cad95a734f8d734bc4bc30b98f4968b2c9465c835c39ed3fd2cb73310f2dd93e"
+size = 5355
+mtime_ms = 1791399255366
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:c0ee80dc-396c-4859-867e-b76c29c0a40c/5a9f88f9-1aee-41ab-bd8b-cdc8476ce8b3/8758e5ca-3411-4e46-9287-562de1ac27fe"
+storage_version_token = "1791399265696766"
+content_type = "text/plain"
